@@ -1,10 +1,19 @@
 "use client";
 
-import { useChat } from "ai/react";
+import { useChat, type Message } from "ai/react";
 
-export function ChatWindow() {
+interface Props {
+  conversationId?: string;
+  initialMessages?: Message[];
+}
+
+export function ChatWindow({ conversationId, initialMessages }: Props) {
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
-    useChat({ api: "/api/chat" });
+    useChat({
+      api: "/api/chat",
+      initialMessages,
+      body: { conversationId },
+    });
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

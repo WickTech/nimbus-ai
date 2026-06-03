@@ -22,7 +22,7 @@ export default function Landing() {
           Open the app →
         </Link>
         <Link
-          href="https://github.com/yourname/nimbus-ai"
+          href="https://github.com/WickTech/nimbus-ai"
           className="rounded-lg border border-zinc-300 px-6 py-3 font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
         >
           View source

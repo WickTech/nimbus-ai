@@ -2,12 +2,24 @@
 
 > A production-shaped, full-stack **AI SaaS starter** — streaming LLM chat with authentication, conversation persistence, and a transactional **usage-based credit billing** ledger.
 
-[![CI](https://github.com/yourname/nimbus-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/yourname/nimbus-ai/actions/workflows/ci.yml)
+[![CI](https://github.com/WickTech/nimbus-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/WickTech/nimbus-ai/actions/workflows/ci.yml)
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
 Nimbus is the part everyone rebuilds from scratch when shipping an AI product: auth, a database, streaming responses, and a way to *charge for tokens without losing money*. It's deliberately small enough to read in one sitting, but wired the way a real SaaS would be.
+
+---
+
+## ✅ Current Status
+
+| | |
+|---|---|
+| **Tests** | 5/5 passing (billing ledger unit tests via Vitest) |
+| **TypeScript** | Strict — zero `any`, zero type errors |
+| **Build** | Production build clean (`npm run build`) |
+| **CI** | GitHub Actions: typecheck → test → build on every push |
+| **Deployment** | `Dockerfile` + `vercel.json` ready |
 
 ---
 
@@ -66,7 +78,7 @@ src/
 ## 🚀 Quick start
 
 ```bash
-git clone https://github.com/yourname/nimbus-ai && cd nimbus-ai
+git clone https://github.com/WickTech/nimbus-ai && cd nimbus-ai
 npm install
 cp .env.example .env            # add your OPENAI_API_KEY + AUTH_SECRET
 npm run db:push                 # create the SQLite schema
@@ -96,6 +108,23 @@ CI runs all of the above on every push/PR (`.github/workflows/ci.yml`).
 **Next.js 15** (App Router, Server Actions) · **TypeScript** (strict) ·
 **NextAuth v5** · **Prisma** · **Vercel AI SDK** · **Tailwind CSS** ·
 **Vitest** · **Docker**
+
+---
+
+## 🗺️ Roadmap
+
+Features planned for future iterations:
+
+- [ ] **OAuth providers** — Google and GitHub sign-in via NextAuth
+- [ ] **Stripe credit top-ups** — buy credits via Stripe Checkout; webhook reconciles the ledger
+- [ ] **Conversation sidebar** — list, rename, and delete past conversations
+- [ ] **Markdown rendering** — render assistant responses as rich Markdown in the chat UI
+- [ ] **Multi-model selector** — let users choose GPT-4o, Claude, Mistral etc. per conversation
+- [ ] **Rate limiting** — sliding-window per-IP and per-user guards on the chat route
+- [ ] **Team workspaces** — shared credit pools with role-based access
+- [ ] **Usage analytics dashboard** — per-user token spend, daily active users, credit burn charts
+- [ ] **Postgres adapter** — swap SQLite for Postgres via `DATABASE_URL` with zero code changes
+- [ ] **Email verification** — confirm email on signup; lock unverified accounts
 
 ---
 

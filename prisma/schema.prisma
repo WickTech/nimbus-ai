@@ -1,0 +1,61 @@
+// Prisma schema for Nimbus AI.
+// SQLite for local dev; change provider to "postgresql" for production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String
+  credits       Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  conversations Conversation[]
+  ledger        CreditLedger[]
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("New chat")
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  messages  Message[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // "user" | "assistant" | "system"
+  content        String
+  tokens         Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+// Append-only audit trail of every credit change. Source of truth for billing.
+model CreditLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int // negative = spend, positive = grant/top-up
+  reason    String // "signup" | "chat" | "topup"
+  balance   Int // running balance after this entry
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

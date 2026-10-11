@@ -1,8 +1,10 @@
 import { streamText } from "ai";
+import { after } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatModel, SYSTEM_PROMPT } from "@/lib/ai";
+import { chatTelemetry, flushTelemetry } from "@/lib/telemetry";
 import {
   InsufficientCreditsError,
   spendCredits,
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
     model: chatModel,
     system: SYSTEM_PROMPT,
     messages,
+    experimental_telemetry: chatTelemetry({ userId, conversationId }),
     // Reconcile billing + persistence once the full response is known.
     async onFinish({ text, usage }) {
       const totalTokens =
@@ -76,6 +79,9 @@ export async function POST(req: Request) {
       await persistTurn(conversationId, userId, messages, text, totalTokens);
     },
   });
+
+  // Runs after the stream closes, so trace export never delays tokens.
+  after(flushTelemetry);
 
   return result.toDataStreamResponse();
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
 import { grantCredits } from "@/lib/credits";
 import { clientIp, isRateLimited } from "@/lib/rateLimit";
 

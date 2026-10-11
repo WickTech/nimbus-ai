@@ -2,35 +2,11 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { grantCredits } from "@/lib/credits";
 import { authConfig } from "@/lib/auth.config";
 import { clientIp, isRateLimited } from "@/lib/rateLimit";
-
-const SCRYPT_KEYLEN = 64;
-
-// Per-user random salt + scrypt (deliberately slow/memory-hard, unlike a
-// single SHA-256 round). Format: "scrypt:<salt-hex>:<derived-hex>".
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const derived = scryptSync(password, salt, SCRYPT_KEYLEN).toString("hex");
-  return `scrypt:${salt}:${derived}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [scheme, salt, derivedHex] = stored.split(":");
-  if (scheme !== "scrypt" || !salt || !derivedHex) return false;
-
-  const candidate = scryptSync(password, salt, SCRYPT_KEYLEN);
-  const target = Buffer.from(derivedHex, "hex");
-  return candidate.length === target.length && timingSafeEqual(candidate, target);
-}
-
-// Fixed dummy salt+hash so a non-existent email still pays scryptSync's
-// cost — otherwise response time differs for valid vs. invalid emails
-// (existing emails always run scrypt, missing ones used to short-circuit).
-const DUMMY_HASH = hashPassword(randomBytes(32).toString("hex"));
+import { hashPassword, verifyPassword } from "@/lib/password";
 
 // Full config: edge-safe base + Node-only adapter, Credentials + GitHub providers.
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -53,11 +29,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (isRateLimited(`login:${clientIp(request)}`, 10, 15 * 60 * 1000)) return null;
 
         const user = await db.user.findUnique({ where: { email } });
-        // Always run verifyPassword, even for a missing user (against a
+        // Always run verifyPassword, even for a missing user (it checks a
         // fixed dummy hash) — a non-existent email must cost the same time
         // as a wrong password, or response timing leaks which emails exist.
-        const ok = verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
+        const { ok, needsRehash } = verifyPassword(password, user?.passwordHash ?? undefined);
         if (!user?.passwordHash || !ok) return null;
+
+        if (needsRehash) {
+          // Legacy SHA-256 hash verified: upgrade to scrypt now that we have
+          // the plaintext. Compare-and-swap on the old hash so a concurrent
+          // password change isn't overwritten. Best-effort — a failure just
+          // means we retry on the next login.
+          await db.user
+            .updateMany({
+              where: { id: user.id, passwordHash: user.passwordHash },
+              data: { passwordHash: hashPassword(password) },
+            })
+            .catch((err) => console.error(`Password rehash failed for user ${user.id}:`, err));
+        }
 
         return { id: user.id, email: user.email, name: user.name };
       },

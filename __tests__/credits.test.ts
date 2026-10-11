@@ -21,6 +21,21 @@ function makeFakeDb(initialCredits: number) {
       update: async ({ data }: { data: { credits: number } }) => {
         state.credits = data.credits;
       },
+      // Mirrors the conditional UPDATE in spendCredits: only decrements (and
+      // reports a match) when the balance still satisfies `credits: { gte }`.
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { credits?: { gte: number } };
+        data: { credits: { decrement: number } };
+      }) => {
+        const meetsThreshold =
+          where.credits === undefined || state.credits >= where.credits.gte;
+        if (!meetsThreshold) return { count: 0 };
+        state.credits -= data.credits.decrement;
+        return { count: 1 };
+      },
     },
     creditLedger: {
       create: async ({ data }: { data: { delta: number; balance: number; reason: string } }) => {

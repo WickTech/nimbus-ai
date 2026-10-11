@@ -1,8 +1,10 @@
 import { streamText } from "ai";
+import { after } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatModel, SYSTEM_PROMPT } from "@/lib/ai";
+import { chatTelemetry, flushTelemetry } from "@/lib/telemetry";
 import {
   InsufficientCreditsError,
   spendCredits,
@@ -36,37 +38,50 @@ export async function POST(req: Request) {
   }
   const { messages, conversationId } = parsed.data;
 
-  // Pre-flight: a request must cost at least 1 credit. Block empty wallets
-  // before we spend money on the upstream model.
-  const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
-  if (user.credits < 1) {
-    return Response.json(
-      { error: "Out of credits. Top up to keep chatting." },
-      { status: 402 },
-    );
+  // Reserve the minimum charge atomically *before* calling the upstream
+  // model. Concurrent requests now serialize on this deduction instead of
+  // all reading the same balance and all incurring real OpenAI cost before
+  // any of them get billed.
+  try {
+    await spendCredits(db, userId, 1, "chat:reserve");
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return Response.json(
+        { error: "Out of credits. Top up to keep chatting." },
+        { status: 402 },
+      );
+    }
+    throw err;
   }
 
   const result = streamText({
     model: chatModel,
     system: SYSTEM_PROMPT,
     messages,
+    experimental_telemetry: chatTelemetry({ userId, conversationId }),
     // Reconcile billing + persistence once the full response is known.
     async onFinish({ text, usage }) {
       const totalTokens =
         usage?.totalTokens ?? Math.ceil((text.length + lastUserLen(messages)) / 4);
       const cost = tokensToCredits(totalTokens);
+      const remainder = cost - 1; // 1 credit already reserved up front
 
-      try {
-        await spendCredits(db, userId, cost, "chat");
-      } catch (err) {
-        if (!(err instanceof InsufficientCreditsError)) throw err;
-        // Overspend on a streamed response: floor the wallet to 0.
-        await spendCredits(db, userId, user.credits, "chat").catch(() => {});
+      if (remainder > 0) {
+        try {
+          await spendCredits(db, userId, remainder, "chat:reconcile");
+        } catch (err) {
+          if (!(err instanceof InsufficientCreditsError)) throw err;
+          // Overspend on a streamed response: floor the wallet to 0.
+          await spendCredits(db, userId, err.balance, "chat:reconcile").catch(() => {});
+        }
       }
 
       await persistTurn(conversationId, userId, messages, text, totalTokens);
     },
   });
+
+  // Runs after the stream closes, so trace export never delays tokens.
+  after(flushTelemetry);
 
   return result.toDataStreamResponse();
 }

@@ -2,23 +2,11 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { grantCredits } from "@/lib/credits";
 import { authConfig } from "@/lib/auth.config";
-
-// NOTE: For a portfolio demo we hash with a salted SHA-256. In production,
-// swap to argon2/bcrypt — the verify/hash boundary is isolated here.
-export function hashPassword(password: string): string {
-  const salt = process.env.AUTH_SECRET ?? "nimbus";
-  return createHash("sha256").update(`${salt}:${password}`).digest("hex");
-}
-
-function verifyPassword(password: string, hash: string): boolean {
-  const candidate = Buffer.from(hashPassword(password));
-  const stored = Buffer.from(hash);
-  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
-}
+import { clientIp, isRateLimited } from "@/lib/rateLimit";
+import { hashPassword, verifyPassword } from "@/lib/password";
 
 // Full config: edge-safe base + Node-only adapter, Credentials + GitHub providers.
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -31,13 +19,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
     Credentials({
       credentials: { email: {}, password: {} },
-      async authorize(creds) {
+      async authorize(creds, request) {
         const email = String(creds?.email ?? "").toLowerCase().trim();
         const password = String(creds?.password ?? "");
         if (!email || !password) return null;
 
+        // Unthrottled login was the one credential-guessing surface that
+        // never got a limiter (register did). 10 attempts / 15 min / IP.
+        if (isRateLimited(`login:${clientIp(request)}`, 10, 15 * 60 * 1000)) return null;
+
         const user = await db.user.findUnique({ where: { email } });
-        if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) return null;
+        // Always run verifyPassword, even for a missing user (it checks a
+        // fixed dummy hash) — a non-existent email must cost the same time
+        // as a wrong password, or response timing leaks which emails exist.
+        const { ok, needsRehash } = verifyPassword(password, user?.passwordHash ?? undefined);
+        if (!user?.passwordHash || !ok) return null;
+
+        if (needsRehash) {
+          // Legacy SHA-256 hash verified: upgrade to scrypt now that we have
+          // the plaintext. Compare-and-swap on the old hash so a concurrent
+          // password change isn't overwritten. Best-effort — a failure just
+          // means we retry on the next login.
+          await db.user
+            .updateMany({
+              where: { id: user.id, passwordHash: user.passwordHash },
+              data: { passwordHash: hashPassword(password) },
+            })
+            .catch((err) => console.error(`Password rehash failed for user ${user.id}:`, err));
+        }
 
         return { id: user.id, email: user.email, name: user.name };
       },
@@ -48,7 +57,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async createUser({ user }) {
       if (!user.id) return;
       const freeCredits = Number(process.env.SIGNUP_FREE_CREDITS ?? "100");
-      await grantCredits(db, user.id, freeCredits, "signup").catch(() => {});
+      // Best-effort: a failure here shouldn't block OAuth signup, but it
+      // used to vanish silently, leaving a new user with 0 credits and no
+      // trace. At minimum, log it so it's visible in monitoring.
+      await grantCredits(db, user.id, freeCredits, "signup").catch((err) => {
+        console.error(`Failed to grant signup credits for user ${user.id}:`, err);
+      });
     },
   },
 });

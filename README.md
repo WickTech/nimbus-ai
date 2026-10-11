@@ -31,6 +31,7 @@ Nimbus is the part everyone rebuilds from scratch when shipping an AI product: a
 | 🔐 **Auth** | Credential auth with NextAuth v5 (JWT sessions) + Prisma adapter. Protected routes via middleware. |
 | 🗄️ **Persistence** | Every conversation and message stored in Prisma (SQLite locally, Postgres in prod). |
 | 🪙 **Credit billing** | Append-only `CreditLedger` with atomic, transactional spend/grant. 1 credit ≈ 1k tokens. Wallets can't go negative or drift from the ledger. |
+| 🔭 **LLM observability** | Optional [Langfuse](https://langfuse.com) tracing over OpenTelemetry — set `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` and every chat completion is traced with prompt, output, tokens, latency, user and conversation (Langfuse *Users* / *Sessions* views give per-user cost). `LANGFUSE_RECORD_IO=false` sends metadata only. Zero overhead when unset. |
 | 🧪 **Tested** | Unit tests for the billing core (the part where bugs cost real money). |
 | 🚢 **Deploy-ready** | Multi-stage `Dockerfile`, GitHub Actions CI, one-click Vercel config. |
 

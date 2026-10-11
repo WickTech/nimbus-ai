@@ -36,15 +36,21 @@ export async function spendCredits(
   if (cost < 0) throw new Error("cost must be non-negative");
 
   return db.$transaction(async (tx) => {
-    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-    if (user.credits < cost) throw new InsufficientCreditsError(user.credits);
-
-    const balance = user.credits - cost;
-    await tx.user.update({ where: { id: userId }, data: { credits: balance } });
-    await tx.creditLedger.create({
-      data: { userId, delta: -cost, reason, balance },
+    // Conditional UPDATE (not read-then-write) so the balance check and the
+    // deduction are one atomic statement — concurrent spenders serialize on
+    // the row instead of racing on a stale read.
+    const { count } = await tx.user.updateMany({
+      where: { id: userId, credits: { gte: cost } },
+      data: { credits: { decrement: cost } },
     });
-    return { balance };
+
+    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+    if (count === 0) throw new InsufficientCreditsError(user.credits);
+
+    await tx.creditLedger.create({
+      data: { userId, delta: -cost, reason, balance: user.credits },
+    });
+    return { balance: user.credits };
   });
 }
 

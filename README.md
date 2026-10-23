@@ -9,6 +9,12 @@
 
 Nimbus is the part everyone rebuilds from scratch when shipping an AI product: auth, a database, streaming responses, and a way to *charge for tokens without losing money*. It's deliberately small enough to read in one sitting, but wired the way a real SaaS would be.
 
+| Landing | Chat with saved conversations and credit balance |
+|---|---|
+| ![Nimbus landing page](docs/landing.png) | ![Nimbus chat with conversation history](docs/chat.png) |
+
+<sub>Screenshots are from a local run. The chat shows a seeded sample conversation, because no model API key was configured.</sub>
+
 ---
 
 ## ✅ Current Status

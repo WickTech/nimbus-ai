@@ -9,7 +9,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/nimbus"
+      DATABASE_URL: "file:./prisma/dev.db"
       AUTH_SECRET: "ci-test-secret-not-real"
       OPENAI_API_KEY: "sk-test"
     steps:

@@ -35,7 +35,7 @@ Nimbus is the part everyone rebuilds from scratch when shipping an AI product: a
 |---|---|
 | 💬 **Streaming chat** | Token-by-token responses via the [Vercel AI SDK](https://sdk.vercel.ai) — works with OpenAI or any compatible endpoint (Ollama, Groq, Together). |
 | 🔐 **Auth** | Credential auth with NextAuth v5 (JWT sessions) + Prisma adapter. Protected routes via middleware. |
-| 🗄️ **Persistence** | Every conversation and message stored in Prisma (Postgres). |
+| 🗄️ **Persistence** | Every conversation and message stored in Prisma (SQLite locally, Postgres in prod). |
 | 🪙 **Credit billing** | Append-only `CreditLedger` with atomic, transactional spend/grant. 1 credit ≈ 1k tokens. Wallets can't go negative or drift from the ledger. |
 | 🔭 **LLM observability** | Optional [Langfuse](https://langfuse.com) tracing over OpenTelemetry — set `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` and every chat completion is traced with prompt, output, tokens, latency, user and conversation (Langfuse *Users* / *Sessions* views give per-user cost). `LANGFUSE_RECORD_IO=false` sends metadata only. Zero overhead when unset. |
 | 🧪 **Tested** | The billing core is tested on a real database under parallel load, and the whole product is tested in a real browser (the parts where bugs cost real money). |
@@ -88,7 +88,7 @@ src/
 git clone https://github.com/WickTech/nimbus-ai && cd nimbus-ai
 npm install
 cp .env.example .env            # add your OPENAI_API_KEY + AUTH_SECRET
-npm run db:push                 # create the Postgres schema
+npm run db:push                 # create the SQLite schema
 npm run db:seed                 # optional: demo@nimbus.ai / password123
 npm run dev                     # http://localhost:3000
 ```
@@ -143,7 +143,7 @@ Features planned for future iterations:
 - [ ] **Rate limiting** — sliding-window per-IP and per-user guards on the chat route
 - [ ] **Team workspaces** — shared credit pools with role-based access
 - [ ] **Usage analytics dashboard** — per-user token spend, daily active users, credit burn charts
-- [x] **Postgres** — schema targets Postgres (Neon on Vercel)
+- [ ] **Postgres adapter** — swap SQLite for Postgres via `DATABASE_URL` with zero code changes
 - [ ] **Email verification** — confirm email on signup; lock unverified accounts
 
 ---

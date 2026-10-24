@@ -7,6 +7,7 @@ import { chatModel, SYSTEM_PROMPT } from "@/lib/ai";
 import { chatTelemetry, flushTelemetry } from "@/lib/telemetry";
 import {
   InsufficientCreditsError,
+  grantCredits,
   spendCredits,
   tokensToCredits,
 } from "@/lib/credits";
@@ -59,6 +60,14 @@ export async function POST(req: Request) {
     system: SYSTEM_PROMPT,
     messages,
     experimental_telemetry: chatTelemetry({ userId, conversationId }),
+    // The model call failed, so the user got nothing: give back the credit reserved above.
+    // (onFinish never runs for a failed call, so this cannot refund twice.)
+    async onError({ error }) {
+      console.error("chat: upstream model error, refunding the reserved credit", error);
+      await grantCredits(db, userId, 1, "chat:refund").catch((err) =>
+        console.error("chat: refund failed", err),
+      );
+    },
     // Reconcile billing + persistence once the full response is known.
     async onFinish({ text, usage }) {
       const totalTokens =

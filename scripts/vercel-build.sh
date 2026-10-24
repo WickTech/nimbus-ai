@@ -6,6 +6,6 @@ case "$DATABASE_URL" in
   *) echo "DATABASE_URL must be a Postgres URL on Vercel" >&2; exit 1 ;;
 esac
 sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
-npx prisma db push --skip-generate
+DATABASE_URL="${DATABASE_URL_UNPOOLED:-$DATABASE_URL}" npx prisma db push --skip-generate
 npx prisma generate
 npx next build

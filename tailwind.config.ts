@@ -6,8 +6,8 @@ export default {
     extend: {
       colors: {
         nimbus: {
-          DEFAULT: "#6366f1",
-          dark: "#4f46e5",
+          DEFAULT: "#4f46e5",
+          dark: "#4338ca",
         },
       },
     },

@@ -3,11 +3,11 @@ import Link from "next/link";
 export default function Landing() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-8 px-6 text-center">
-      <span className="rounded-full bg-nimbus/10 px-4 py-1 text-sm font-medium text-nimbus">
+      <span className="rounded-full bg-nimbus/10 px-4 py-1 text-sm font-medium text-nimbus dark:text-indigo-300">
         Full-stack AI SaaS starter
       </span>
       <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
-        Ship an AI product, <span className="text-nimbus">not boilerplate.</span>
+        Ship an AI product, <span className="text-nimbus dark:text-indigo-400">not boilerplate.</span>
       </h1>
       <p className="max-w-xl text-lg text-zinc-600 dark:text-zinc-400">
         Nimbus is a production-shaped starter: streaming LLM chat, credential

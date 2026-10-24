@@ -19,7 +19,7 @@ export function ChatWindow({ conversationId, initialMessages }: Props) {
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <p className="mt-20 text-center text-zinc-400">
+          <p className="mt-20 text-center text-zinc-500 dark:text-zinc-400">
             Ask Nimbus anything to get started.
           </p>
         )}
@@ -44,7 +44,8 @@ export function ChatWindow({ conversationId, initialMessages }: Props) {
         ))}
         {error && (
           <p className="text-center text-sm text-red-500">
-            {error.message.includes("402")
+            {/* The 402 reply body is {"error":"Out of credits. ..."}; the SDK puts that text in error.message. */}
+            {/out of credits/i.test(error.message)
               ? "You're out of credits."
               : "Something went wrong. Try again."}
           </p>

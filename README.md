@@ -21,10 +21,10 @@ Nimbus is the part everyone rebuilds from scratch when shipping an AI product: a
 
 | | |
 |---|---|
-| **Tests** | 5/5 passing (billing ledger unit tests via Vitest) |
+| **Tests** | 42 unit and integration tests (real SQLite, 77% line coverage) + 14 browser tests (Playwright, including accessibility) |
 | **TypeScript** | Strict — zero `any`, zero type errors |
 | **Build** | Production build clean (`npm run build`) |
-| **CI** | GitHub Actions: typecheck → test → build on every push |
+| **CI** | GitHub Actions: typecheck → tests with coverage → build, plus a browser-test job, on every push and PR |
 | **Deployment** | `Dockerfile` + `vercel.json` ready |
 
 ---
@@ -38,7 +38,7 @@ Nimbus is the part everyone rebuilds from scratch when shipping an AI product: a
 | 🗄️ **Persistence** | Every conversation and message stored in Prisma (Postgres). |
 | 🪙 **Credit billing** | Append-only `CreditLedger` with atomic, transactional spend/grant. 1 credit ≈ 1k tokens. Wallets can't go negative or drift from the ledger. |
 | 🔭 **LLM observability** | Optional [Langfuse](https://langfuse.com) tracing over OpenTelemetry — set `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` and every chat completion is traced with prompt, output, tokens, latency, user and conversation (Langfuse *Users* / *Sessions* views give per-user cost). `LANGFUSE_RECORD_IO=false` sends metadata only. Zero overhead when unset. |
-| 🧪 **Tested** | Unit tests for the billing core (the part where bugs cost real money). |
+| 🧪 **Tested** | The billing core is tested on a real database under parallel load, and the whole product is tested in a real browser (the parts where bugs cost real money). |
 | 🚢 **Deploy-ready** | Multi-stage `Dockerfile`, GitHub Actions CI, one-click Vercel config. |
 
 ---
@@ -73,7 +73,7 @@ src/
 │   ├── login / register       # auth pages
 │   └── page.tsx               # marketing landing
 ├── lib/
-│   ├── credits.ts             # ⭐ transactional ledger (unit-tested)
+│   ├── credits.ts             # ⭐ transactional ledger (tested on a real DB)
 │   ├── auth.ts                # NextAuth config + password hashing
 │   ├── ai.ts                  # provider wrapper
 │   └── db.ts                  # Prisma singleton
@@ -101,12 +101,25 @@ No OpenAI key? Point `OPENAI_BASE_URL` at a local Ollama server
 ## 🧪 Tests & quality
 
 ```bash
-npm test          # vitest — billing ledger unit tests
-npm run typecheck # strict TypeScript, no emit
-npm run build     # production build
+npm test               # 42 Vitest tests on a throwaway SQLite database (about 7 s)
+npm run test:coverage  # the same, with coverage and thresholds
+npm run build && npm run test:e2e   # 14 browser tests (Playwright) against the production build
+npm run typecheck      # strict TypeScript, no emit
 ```
 
-CI runs all of the above on every push/PR (`.github/workflows/ci.yml`).
+| Layer | What it proves |
+|---|---|
+| **Credit ledger** (real database) | 40 parallel spends can never overdraw the balance; every spend leaves exactly one ledger row; the ledger always adds up to the balance, even with grants and spends racing; a refused spend changes nothing |
+| **Sign-up** | Free credits and a ledger entry, scrypt-hashed passwords, case-insensitive duplicates, validation, 5 sign-ups per hour per address |
+| **Chat endpoint** (mock model, no network) | 1 credit reserved before the model is called; a long answer is billed from its real token usage; 402 at zero balance; **a failed model call is refunded**; nobody can write into another user's conversation |
+| **Browser** (fake OpenAI server, no key) | Sign up and sign in, chat, credits drop, history survives a reload, a clear out-of-credits message, a failed call costs nothing, wrong password shows an error, sign-out locks the chat, one user can't open another's conversation |
+| **Accessibility** (axe, WCAG 2.1 AA) | No automatic violations on the home, login, register and chat pages |
+
+The browser tests need no API key: the app already talks to any OpenAI-compatible server through `OPENAI_BASE_URL`, so they use a tiny fake one (`e2e/fake-openai.mjs`) that answers deterministically and reports token usage.
+
+Unit-level coverage is about 77% of lines and 89% of branches; the rest is authentication wiring that only the browser tests exercise. CI runs everything on every push and PR (`.github/workflows/ci.yml`).
+
+> **SQLite note:** local development uses SQLite, which allows one writer. `DATABASE_URL` therefore ends in `?connection_limit=1` (see `.env.example`) so simultaneous requests queue instead of timing out. Postgres in production does not need it.
 
 ---
 

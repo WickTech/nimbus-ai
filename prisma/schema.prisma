@@ -1,12 +1,12 @@
 // Prisma schema for Nimbus AI.
-// SQLite for local dev; change provider to "postgresql" for production.
+// Postgres (Neon on Vercel). Locally: any Postgres, e.g. docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

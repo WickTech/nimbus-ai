@@ -40,3 +40,9 @@ yarn-error.log*
 
 # tooling
 .claude-flow/
+
+# browser tests
+/playwright-report/
+/test-results/
+/prisma/e2e.db*
+/prisma/build.db*

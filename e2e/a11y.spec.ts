@@ -1,0 +1,27 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, signUpAndIn, test } from "./helpers";
+
+// Automated accessibility checks (axe). They catch the mechanical problems (contrast, labels, landmarks);
+// they cannot replace trying the app with a keyboard and a screen reader.
+const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+
+async function violations(page: import("@playwright/test").Page) {
+  const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+  return results.violations.flatMap((v) =>
+    v.nodes.map((n) => `${v.id} (${v.impact}): ${n.html.slice(0, 110)} -> ${n.any[0]?.message ?? n.failureSummary}`),
+  );
+}
+
+test.describe("accessibility", () => {
+  for (const path of ["/", "/login", "/register"]) {
+    test(`${path} has no automatic accessibility violations`, async ({ page }) => {
+      await page.goto(path);
+      expect(await violations(page)).toEqual([]);
+    });
+  }
+
+  test("the chat page has no automatic accessibility violations", async ({ page, user }) => {
+    await signUpAndIn(page, user);
+    expect(await violations(page)).toEqual([]);
+  });
+});

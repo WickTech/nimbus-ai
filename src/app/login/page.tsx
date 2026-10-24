@@ -1,9 +1,15 @@
+import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { signIn, auth } from "@/lib/auth";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   if (await auth()) redirect("/chat");
+  const { error } = await searchParams;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
@@ -26,7 +32,7 @@ export default async function LoginPage() {
         </form>
       )}
 
-      <div className="flex items-center gap-3 text-sm text-zinc-400">
+      <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
         <span className="flex-1 border-t border-zinc-200 dark:border-zinc-800" />
         or continue with email
         <span className="flex-1 border-t border-zinc-200 dark:border-zinc-800" />
@@ -35,11 +41,18 @@ export default async function LoginPage() {
       <form
         action={async (formData: FormData) => {
           "use server";
-          await signIn("credentials", {
-            email: formData.get("email"),
-            password: formData.get("password"),
-            redirectTo: "/chat",
-          });
+          try {
+            await signIn("credentials", {
+              email: formData.get("email"),
+              password: formData.get("password"),
+              redirectTo: "/chat",
+            });
+          } catch (err) {
+            // Wrong email or password (or too many attempts): go back with a message instead of a crash page.
+            // Anything else, including the redirect Next.js uses after a successful sign-in, must propagate.
+            if (err instanceof AuthError) redirect("/login?error=credentials");
+            throw err;
+          }
         }}
         className="flex flex-col gap-3"
       >
@@ -57,13 +70,18 @@ export default async function LoginPage() {
           placeholder="Password"
           className="rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-900"
         />
+        {error && (
+          <p role="alert" className="text-sm text-red-500">
+            Incorrect email or password. Try again.
+          </p>
+        )}
         <button className="rounded-lg bg-nimbus px-4 py-2 font-medium text-white hover:bg-nimbus-dark">
           Sign in
         </button>
       </form>
       <p className="text-sm text-zinc-500">
         No account?{" "}
-        <Link href="/register" className="text-nimbus underline-offset-2 hover:underline">
+        <Link href="/register" className="text-nimbus underline underline-offset-2 dark:text-indigo-400">
           Create one
         </Link>
       </p>

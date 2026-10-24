@@ -1,5 +1,5 @@
 // Prisma schema for Nimbus AI.
-// Postgres (Neon on Vercel). Locally: any Postgres, e.g. docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+// Postgres (Neon on Vercel). Locally: any Postgres, set DATABASE_URL in .env.
 
 generator client {
   provider = "prisma-client-js"

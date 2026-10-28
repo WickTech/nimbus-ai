@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { signOut } from "@/lib/auth";
+import { TopUpButton } from "@/components/TopUpButton";
 
 interface Props {
   userId: string;
@@ -69,17 +70,20 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
         <p className="truncate text-xs text-zinc-500" title={userEmail}>
           {userEmail}
         </p>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-          className="mt-1"
-        >
-          <button className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400">
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-3">
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/" });
+            }}
+            className="mt-1"
+          >
+            <button className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400">
+              Sign out
+            </button>
+          </form>
+          <TopUpButton />
+        </div>
       </div>
     </aside>
   );

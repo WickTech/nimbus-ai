@@ -1,6 +1,8 @@
 "use client";
 
 import { useChat, type Message } from "ai/react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 
 interface Props {
   conversationId?: string;
@@ -32,13 +34,39 @@ export function ChatWindow({ conversationId, initialMessages }: Props) {
           >
             <div
               className={
-                "max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm " +
+                "max-w-[80%] rounded-2xl px-4 py-2 text-sm " +
                 (m.role === "user"
                   ? "bg-nimbus text-white"
                   : "bg-zinc-100 dark:bg-zinc-800")
               }
             >
-              {m.content}
+              {m.role === "user" ? (
+                <span className="whitespace-pre-wrap">{m.content}</span>
+              ) : (
+                <ReactMarkdown
+                  rehypePlugins={[rehypeSanitize]}
+                  components={{
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="mb-2 ml-4 list-disc">{children}</ul>,
+                    ol: ({ children }) => <ol className="mb-2 ml-4 list-decimal">{children}</ol>,
+                    li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                    code: ({ children, className }) =>
+                      className ? (
+                        <code className="block overflow-x-auto rounded bg-zinc-200 p-2 font-mono text-xs dark:bg-zinc-700">
+                          {children}
+                        </code>
+                      ) : (
+                        <code className="rounded bg-zinc-200 px-1 font-mono text-xs dark:bg-zinc-700">
+                          {children}
+                        </code>
+                      ),
+                    pre: ({ children }) => <pre className="mb-2">{children}</pre>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                  }}
+                >
+                  {m.content}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         ))}

@@ -36,7 +36,8 @@ Nimbus is the part everyone rebuilds from scratch when shipping an AI product: a
 | 💬 **Streaming chat** | Token-by-token responses via the [Vercel AI SDK](https://sdk.vercel.ai) — works with OpenAI or any compatible endpoint (Ollama, Groq, Together). |
 | 🔐 **Auth** | Credential auth with NextAuth v5 (JWT sessions) + Prisma adapter. Protected routes via middleware. |
 | 🗄️ **Persistence** | Every conversation and message stored in Prisma (SQLite locally, Postgres in prod). |
-| 🪙 **Credit billing** | Append-only `CreditLedger` with atomic, transactional spend/grant. 1 credit ≈ 1k tokens. Wallets can't go negative or drift from the ledger. |
+| 🪙 **Credit billing** | Append-only `CreditLedger` with atomic, transactional spend/grant. 1 credit ≈ 1k tokens. Wallets can't go negative or drift from the ledger. Stripe Checkout top-up built in. |
+| 💬 **Markdown chat** | Assistant responses render as rich Markdown (react-markdown + rehype-sanitize): headings, lists, inline/block code, bold. Safe — no XSS. |
 | 🔭 **LLM observability** | Optional [Langfuse](https://langfuse.com) tracing over OpenTelemetry — set `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` and every chat completion is traced with prompt, output, tokens, latency, user and conversation (Langfuse *Users* / *Sessions* views give per-user cost). `LANGFUSE_RECORD_IO=false` sends metadata only. Zero overhead when unset. |
 | 🧪 **Tested** | The billing core is tested on a real database under parallel load, and the whole product is tested in a real browser (the parts where bugs cost real money). |
 | 🚢 **Deploy-ready** | Multi-stage `Dockerfile`, GitHub Actions CI, one-click Vercel config. |
@@ -136,9 +137,9 @@ Unit-level coverage is about 77% of lines and 89% of branches; the rest is authe
 Features planned for future iterations:
 
 - [ ] **OAuth providers** — Google and GitHub sign-in via NextAuth
-- [ ] **Stripe credit top-ups** — buy credits via Stripe Checkout; webhook reconciles the ledger
+- [x] **Stripe credit top-ups** — buy credits via Stripe Checkout; webhook reconciles the ledger (`POST /api/stripe/checkout` + `/api/stripe/webhook`, `TopUpButton` in sidebar)
 - [ ] **Conversation sidebar** — list, rename, and delete past conversations
-- [ ] **Markdown rendering** — render assistant responses as rich Markdown in the chat UI
+- [x] **Markdown rendering** — assistant responses render as rich Markdown (react-markdown + rehype-sanitize); headings, lists, inline/block code, bold
 - [ ] **Multi-model selector** — let users choose GPT-4o, Claude, Mistral etc. per conversation
 - [ ] **Rate limiting** — sliding-window per-IP and per-user guards on the chat route
 - [ ] **Team workspaces** — shared credit pools with role-based access

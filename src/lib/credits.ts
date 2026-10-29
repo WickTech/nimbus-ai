@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 /**
  * Usage-based credit billing.
@@ -54,28 +54,32 @@ export async function spendCredits(
   });
 }
 
-/**
- * Grant credits (signup bonus, top-up, refund) and record it.
- *
- * `externalRef` makes the grant idempotent: it is stored on the ledger row under a unique constraint, so a second
- * grant with the same ref fails (Prisma P2002) and the whole transaction, balance update included, rolls back.
- */
+/** Credit `amount` to a user and append the ledger row, inside an already-open transaction. */
+export async function grantCreditsInTx(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  amount: number,
+  reason: string,
+): Promise<{ balance: number }> {
+  if (amount <= 0) throw new Error("amount must be positive");
+
+  const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+  const balance = user.credits + amount;
+  await tx.user.update({ where: { id: userId }, data: { credits: balance } });
+  await tx.creditLedger.create({
+    data: { userId, delta: amount, reason, balance },
+  });
+  return { balance };
+}
+
+/** Grant credits (signup bonus, top-up, refund) and record it. */
 export async function grantCredits(
   db: PrismaClient,
   userId: string,
   amount: number,
   reason: string,
-  externalRef?: string,
 ): Promise<{ balance: number }> {
   if (amount <= 0) throw new Error("amount must be positive");
 
-  return db.$transaction(async (tx) => {
-    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-    const balance = user.credits + amount;
-    await tx.user.update({ where: { id: userId }, data: { credits: balance } });
-    await tx.creditLedger.create({
-      data: { userId, delta: amount, reason, balance, externalRef },
-    });
-    return { balance };
-  });
+  return db.$transaction((tx) => grantCreditsInTx(tx, userId, amount, reason));
 }

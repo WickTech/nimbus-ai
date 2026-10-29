@@ -95,10 +95,14 @@ model CreditLedger {
   delta     Int // negative = spend, positive = grant/top-up
   reason    String // "signup" | "chat" | "topup"
   balance   Int // running balance after this entry
-  // Idempotency key for grants that come from outside (the Stripe checkout session id). Unique, so a
-  // retried webhook cannot grant twice. NULL for ordinary entries (many NULLs are allowed).
-  externalRef String? @unique
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// One row per Stripe checkout session whose credits were granted. The primary key makes the grant
+// idempotent: a retried webhook fails the insert, which rolls back the transaction holding the grant.
+model ProcessedStripeSession {
+  id        String   @id // Stripe checkout session id (cs_...)
+  createdAt DateTime @default(now())
 }

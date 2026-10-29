@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
-import { grantCredits } from "@/lib/credits";
+import { grantCreditsInTx } from "@/lib/credits";
 
 export const runtime = "nodejs";
 
@@ -32,9 +32,12 @@ export async function POST(req: Request) {
 
     if (userId && credits > 0) {
       try {
-        // The checkout session id is the idempotency key: Stripe retries deliveries, and one payment must
-        // grant its credits exactly once.
-        await grantCredits(db, userId, credits, "topup", session.id);
+        // One transaction: record the checkout session id (primary key), then grant. Stripe retries
+        // deliveries, and a repeat fails the insert (P2002), which rolls the grant back too.
+        await db.$transaction(async (tx) => {
+          await tx.processedStripeSession.create({ data: { id: session.id } });
+          await grantCreditsInTx(tx, userId, credits, "topup");
+        });
       } catch (error) {
         const alreadyGranted =
           error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";

@@ -85,16 +85,6 @@ describe("credit ledger on a real database", () => {
     expect(await db.creditLedger.count({ where: { userId } })).toBe(before);
   });
 
-  it("a grant repeated with the same externalRef is refused and leaves balance and ledger untouched", async () => {
-    const userId = await newUser(5);
-    await grantCredits(db, userId, 100, "topup", "cs_once");
-
-    await expect(grantCredits(db, userId, 100, "topup", "cs_once")).rejects.toMatchObject({ code: "P2002" });
-
-    expect(await balanceOf(userId)).toBe(105);
-    expect(await ledgerSum(userId)).toBe(105);
-  });
-
   it("rejects negative spends and non-positive grants", async () => {
     const userId = await newUser(5);
     await expect(spendCredits(db, userId, -1, "test")).rejects.toThrow("non-negative");

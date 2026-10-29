@@ -10,7 +10,7 @@ test.describe("accounts", () => {
   test("signing up signs the new user straight in, with the free credits", async ({ page, user }) => {
     await register(page, user);
 
-    await expect(page.getByText("Ask Nimbus anything to get started.")).toBeVisible();
+    await expect(page.getByText("What can Nimbus help with?")).toBeVisible();
     await expect(page.locator("aside").getByText("3 cr")).toBeVisible(); // SIGNUP_FREE_CREDITS=3 in playwright.config.ts
     await expect(page.locator("aside").getByText(user.email)).toBeVisible();
   });

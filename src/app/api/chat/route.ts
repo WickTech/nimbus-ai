@@ -39,6 +39,13 @@ export async function POST(req: Request) {
   }
   const { messages, conversationId } = parsed.data;
 
+  // A conversation id that is not the caller's is refused before anything is billed (it used to be
+  // ignored silently after the model had already been paid for).
+  if (conversationId) {
+    const owned = await db.conversation.findFirst({ where: { id: conversationId, userId }, select: { id: true } });
+    if (!owned) return Response.json({ error: "Conversation not found" }, { status: 404 });
+  }
+
   // Reserve the minimum charge atomically *before* calling the upstream
   // model. Concurrent requests now serialize on this deduction instead of
   // all reading the same balance and all incurring real OpenAI cost before
@@ -55,11 +62,25 @@ export async function POST(req: Request) {
     throw err;
   }
 
+  // Give a new chat its row now, so the client can be told its id and send it with every follow-up. Without
+  // that, each follow-up created yet another conversation and one chat was split across the history.
+  let activeId = conversationId;
+  const createdHere = !conversationId;
+  if (!activeId) {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const created = await db.conversation.create({
+      data: { userId, title: (lastUser?.content ?? "New chat").slice(0, 60) },
+      select: { id: true },
+    });
+    activeId = created.id;
+  }
+  const convoId = activeId;
+
   const result = streamText({
     model: chatModel,
     system: SYSTEM_PROMPT,
     messages,
-    experimental_telemetry: chatTelemetry({ userId, conversationId }),
+    experimental_telemetry: chatTelemetry({ userId, conversationId: convoId }),
     // The model call failed, so the user got nothing: give back the credit reserved above.
     // (onFinish never runs for a failed call, so this cannot refund twice.)
     async onError({ error }) {
@@ -67,6 +88,12 @@ export async function POST(req: Request) {
       await grantCredits(db, userId, 1, "chat:refund").catch((err) =>
         console.error("chat: refund failed", err),
       );
+      // Nothing was saved for a chat that failed on its very first message: do not leave an empty entry behind.
+      if (createdHere) {
+        await db.conversation
+          .deleteMany({ where: { id: convoId, userId } })
+          .catch((err) => console.error("chat: could not remove the empty conversation", err));
+      }
     },
     // Reconcile billing + persistence once the full response is known.
     async onFinish({ text, usage }) {
@@ -85,14 +112,14 @@ export async function POST(req: Request) {
         }
       }
 
-      await persistTurn(conversationId, userId, messages, text, totalTokens);
+      await persistTurn(convoId, userId, messages, text, totalTokens);
     },
   });
 
   // Runs after the stream closes, so trace export never delays tokens.
   after(flushTelemetry);
 
-  return result.toDataStreamResponse();
+  return result.toDataStreamResponse({ headers: { "x-conversation-id": convoId } });
 }
 
 function lastUserLen(messages: { role: string; content: string }[]): number {
@@ -101,7 +128,7 @@ function lastUserLen(messages: { role: string; content: string }[]): number {
 }
 
 async function persistTurn(
-  conversationId: string | undefined,
+  conversationId: string,
   userId: string,
   messages: { role: string; content: string }[],
   assistantText: string,
@@ -109,27 +136,13 @@ async function persistTurn(
 ) {
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
 
-  const convo = conversationId
-    ? await db.conversation.findFirst({ where: { id: conversationId, userId } })
-    : await db.conversation.create({
-        data: {
-          userId,
-          title: (lastUser?.content ?? "New chat").slice(0, 60),
-        },
-      });
-  if (!convo) return;
+  const convo = await db.conversation.findFirst({ where: { id: conversationId, userId }, select: { id: true } });
+  if (!convo) return; // deleted while the reply was streaming
 
   await db.message.createMany({
     data: [
-      ...(lastUser
-        ? [{ conversationId: convo.id, role: "user", content: lastUser.content }]
-        : []),
-      {
-        conversationId: convo.id,
-        role: "assistant",
-        content: assistantText,
-        tokens,
-      },
+      ...(lastUser ? [{ conversationId: convo.id, role: "user", content: lastUser.content }] : []),
+      { conversationId: convo.id, role: "assistant", content: assistantText, tokens },
     ],
   });
   await db.conversation.update({

@@ -26,11 +26,10 @@ test.describe("chat and credits", () => {
     for (const text of ["one", "two", "three"]) await send(page, text);
     await expectCredits(page, "0 cr");
 
-    await page.getByPlaceholder("Message Nimbus…").fill("four");
-    await page.getByRole("button", { name: "Send" }).click();
-
-    await expect(page.getByText("You're out of credits.")).toBeVisible();
-    await expect(page.getByText("Something went wrong. Try again.")).toHaveCount(0);
+    // the banner appears and the composer locks; the 402 itself is covered by the route integration test
+    await expect(page.getByRole("status")).toContainText("You're out of credits.");
+    await expect(page.getByLabel("Message")).toBeDisabled();
+    await expect(page.getByRole("status").getByRole("link", { name: "Top up" })).toBeVisible();
   });
 
   test("a failed model call shows an error and does not cost a credit", async ({ page, user }) => {
@@ -61,7 +60,26 @@ test.describe("chat and credits", () => {
     await expect(other.getByText("No conversations yet.")).toBeVisible();
     await other.goto(href!); // the first user's conversation id
     await expect(other.getByText("my private question")).toHaveCount(0);
-    await expect(other.getByText("Ask Nimbus anything to get started.")).toBeVisible();
+    await expect(other.getByText("What can Nimbus help with?")).toBeVisible();
     await otherContext.close();
+  });
+
+  test("suggestion fills the composer, assistant reply can be copied, low-credit banner shows", async ({ page, user }) => {
+    await signUpAndIn(page, user); // 3 credits
+    await expect(page.getByRole("status")).toContainText("Only 3 credits left.");
+    await page.getByRole("button", { name: /JWT sessions/ }).click();
+    await expect(page.getByLabel("Message")).toHaveValue(/JWT sessions/);
+    await send(page, "hello copy");
+    await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  });
+
+  test("mobile: sidebar is a drawer", async ({ page, user }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await signUpAndIn(page, user);
+    await expect(page.getByRole("link", { name: "All chats & search →" })).not.toBeInViewport();
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("link", { name: "All chats & search →" })).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("link", { name: "All chats & search →" })).not.toBeInViewport();
   });
 });

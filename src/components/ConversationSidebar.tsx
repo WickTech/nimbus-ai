@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SidebarShell } from "@/components/SidebarShell";
 import { NewChatLink } from "@/components/NewChatLink";
 import { db } from "@/lib/db";
 import { signOut } from "@/lib/auth";
@@ -19,7 +20,8 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
   });
 
   return (
-    <aside className="flex w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-950">
+    <SidebarShell>
+    <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-950">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
         <Link href="/" className="font-semibold text-white">
@@ -103,5 +105,6 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
         </div>
       </div>
     </aside>
+    </SidebarShell>
   );
 }

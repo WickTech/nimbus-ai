@@ -49,6 +49,7 @@ export default async function ChatPage({ searchParams }: Props) {
           key={conversationId ?? "new"}
           conversationId={conversationId}
           initialMessages={initialMessages}
+          credits={user.credits}
         />
       </div>
     </div>

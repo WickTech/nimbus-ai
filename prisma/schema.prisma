@@ -99,3 +99,10 @@ model CreditLedger {
 
   @@index([userId])
 }
+
+// One row per Stripe checkout session whose credits were granted. The primary key makes the grant
+// idempotent: a retried webhook fails the insert, which rolls back the transaction holding the grant.
+model ProcessedStripeSession {
+  id        String   @id // Stripe checkout session id (cs_...)
+  createdAt DateTime @default(now())
+}

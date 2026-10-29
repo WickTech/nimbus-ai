@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 /**
  * Usage-based credit billing.
@@ -54,6 +54,24 @@ export async function spendCredits(
   });
 }
 
+/** Credit `amount` to a user and append the ledger row, inside an already-open transaction. */
+export async function grantCreditsInTx(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  amount: number,
+  reason: string,
+): Promise<{ balance: number }> {
+  if (amount <= 0) throw new Error("amount must be positive");
+
+  const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+  const balance = user.credits + amount;
+  await tx.user.update({ where: { id: userId }, data: { credits: balance } });
+  await tx.creditLedger.create({
+    data: { userId, delta: amount, reason, balance },
+  });
+  return { balance };
+}
+
 /** Grant credits (signup bonus, top-up, refund) and record it. */
 export async function grantCredits(
   db: PrismaClient,
@@ -63,13 +81,5 @@ export async function grantCredits(
 ): Promise<{ balance: number }> {
   if (amount <= 0) throw new Error("amount must be positive");
 
-  return db.$transaction(async (tx) => {
-    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-    const balance = user.credits + amount;
-    await tx.user.update({ where: { id: userId }, data: { credits: balance } });
-    await tx.creditLedger.create({
-      data: { userId, delta: amount, reason, balance },
-    });
-    return { balance };
-  });
+  return db.$transaction((tx) => grantCreditsInTx(tx, userId, amount, reason));
 }

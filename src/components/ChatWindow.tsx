@@ -175,7 +175,9 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
             {/* The 402 reply body is {"error":"Out of credits. ..."}; the SDK puts that text in error.message. */}
             {/out of credits/i.test(error.message)
               ? "You're out of credits."
-              : "Something went wrong. Try again."}
+              : /too many messages/i.test(error.message)
+                ? "You're sending messages too fast. Wait a moment."
+                : "Something went wrong. Try again."}
           </p>
         )}
       </div>

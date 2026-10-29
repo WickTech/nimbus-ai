@@ -101,6 +101,21 @@ describe("POST /api/chat", () => {
     expect(model.calls).toBe(0);
   });
 
+  it("answers 429 past 30 messages a minute and charges nothing for the refused one", async () => {
+    const userId = await newUser(100);
+    signedInAs(userId);
+    for (let i = 0; i < 30; i++) {
+      const ok = await chat("hi");
+      expect(ok.status).toBe(200);
+      await readAll(ok);
+    }
+    await vi.waitFor(async () => expect(await db.message.count({ where: { conversation: { userId } } })).toBe(60));
+    const res = await chat("one too many");
+    expect(res.status).toBe(429);
+    expect(model.calls).toBe(30);
+    expect(await credits(userId)).toBe(70);
+  });
+
   it("answers 400 for a malformed body and charges nothing", async () => {
     const userId = await newUser(5);
     signedInAs(userId);

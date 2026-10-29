@@ -15,7 +15,10 @@ afterAll(() => db.$disconnect());
 
 beforeEach(() => vi.mocked(auth).mockReset());
 
-const PASSWORD = "correct-horse-1";
+// Generated per run: no password literals in the repo.
+const PASSWORD = `pw-${randomUUID()}`;
+const NEW_PASSWORD = `np-${randomUUID()}`;
+const WRONG_PASSWORD = `wp-${randomUUID()}`;
 
 async function newUser({ password = PASSWORD as string | null, name = "Asha" } = {}) {
   const user = await db.user.create({
@@ -83,18 +86,18 @@ describe("PATCH /api/account", () => {
 describe("POST /api/account/password", () => {
   it("answers 401 without a session", async () => {
     signedInAs(null);
-    expect((await changePassword(json("POST", { newPassword: "new-password-1" }))).status).toBe(401);
+    expect((await changePassword(json("POST", { newPassword: NEW_PASSWORD }))).status).toBe(401);
   });
 
   it("changes the password when the current one is right, and the old one stops working", async () => {
     const user = await newUser();
     signedInAs(user.id);
 
-    const res = await changePassword(json("POST", { currentPassword: PASSWORD, newPassword: "brand-new-pass-2" }));
+    const res = await changePassword(json("POST", { currentPassword: PASSWORD, newPassword: NEW_PASSWORD }));
 
     expect(res.status).toBe(200);
     const stored = (await db.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash!;
-    expect(verifyPassword("brand-new-pass-2", stored).ok).toBe(true);
+    expect(verifyPassword(NEW_PASSWORD, stored).ok).toBe(true);
     expect(verifyPassword(PASSWORD, stored).ok).toBe(false);
   });
 
@@ -103,7 +106,7 @@ describe("POST /api/account/password", () => {
     signedInAs(user.id);
     const before = (await db.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash;
 
-    const res = await changePassword(json("POST", { currentPassword: "not-it-at-all", newPassword: "brand-new-pass-2" }));
+    const res = await changePassword(json("POST", { currentPassword: WRONG_PASSWORD, newPassword: NEW_PASSWORD }));
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Current password is incorrect." });
@@ -114,7 +117,7 @@ describe("POST /api/account/password", () => {
     const user = await newUser();
     signedInAs(user.id);
 
-    expect((await changePassword(json("POST", { newPassword: "brand-new-pass-2" }))).status).toBe(400);
+    expect((await changePassword(json("POST", { newPassword: NEW_PASSWORD }))).status).toBe(400);
   });
 
   it("rejects a short new password and reusing the current one", async () => {
@@ -129,11 +132,11 @@ describe("POST /api/account/password", () => {
     const user = await newUser({ password: null });
     signedInAs(user.id);
 
-    const res = await changePassword(json("POST", { newPassword: "first-password-1" }));
+    const res = await changePassword(json("POST", { newPassword: NEW_PASSWORD }));
 
     expect(res.status).toBe(200);
     const stored = (await db.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash!;
-    expect(verifyPassword("first-password-1", stored).ok).toBe(true);
+    expect(verifyPassword(NEW_PASSWORD, stored).ok).toBe(true);
   });
 
   it("throttles guesses at the current password", async () => {
@@ -142,7 +145,7 @@ describe("POST /api/account/password", () => {
 
     const statuses: number[] = [];
     for (let i = 0; i < 7; i++) {
-      statuses.push((await changePassword(json("POST", { currentPassword: `wrong-guess-${i}`, newPassword: "brand-new-pass-2" }))).status);
+      statuses.push((await changePassword(json("POST", { currentPassword: `${WRONG_PASSWORD}-${i}`, newPassword: NEW_PASSWORD }))).status);
     }
 
     expect(statuses.slice(0, 5)).toEqual([400, 400, 400, 400, 400]);
@@ -170,7 +173,7 @@ describe("DELETE /api/account", () => {
     const user = await newUser();
     signedInAs(user.id);
 
-    const res = await DELETE(json("DELETE", { confirmEmail: user.email, password: "wrong-password" }));
+    const res = await DELETE(json("DELETE", { confirmEmail: user.email, password: WRONG_PASSWORD }));
 
     expect(res.status).toBe(400);
     expect(await db.user.findUnique({ where: { id: user.id } })).not.toBeNull();

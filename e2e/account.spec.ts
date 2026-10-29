@@ -1,4 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { expect, login, signUpAndIn, test } from "./helpers";
+
+// Generated per run: no password literals in the repo.
+const NEW_PASSWORD = `np-${randomUUID()}`;
+const WRONG_PASSWORD = `wp-${randomUUID()}`;
 
 test.describe("account", () => {
   test("the account page is private", async ({ page }) => {
@@ -34,9 +39,9 @@ test.describe("account", () => {
     await signUpAndIn(page, user);
     await page.goto("/account?tab=security");
 
-    await page.getByLabel("Current password").fill("not-my-password");
-    await page.getByLabel("New password", { exact: true }).fill("a-brand-new-pass-9");
-    await page.getByLabel("Confirm new password").fill("a-brand-new-pass-9");
+    await page.getByLabel("Current password").fill(WRONG_PASSWORD);
+    await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
+    await page.getByLabel("Confirm new password").fill(NEW_PASSWORD);
     await page.getByRole("button", { name: "Change password" }).click();
     await expect(page.getByText("Current password is incorrect.")).toBeVisible();
 
@@ -47,7 +52,7 @@ test.describe("account", () => {
     await page.goto("/chat");
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await login(page, { ...user, password: "a-brand-new-pass-9" });
+    await login(page, { ...user, password: NEW_PASSWORD });
   });
 
   test("mismatched new passwords are caught before anything is sent", async ({ page, user }) => {
@@ -55,8 +60,8 @@ test.describe("account", () => {
     await page.goto("/account?tab=security");
 
     await page.getByLabel("Current password").fill(user.password);
-    await page.getByLabel("New password", { exact: true }).fill("a-brand-new-pass-9");
-    await page.getByLabel("Confirm new password").fill("something-else-123");
+    await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
+    await page.getByLabel("Confirm new password").fill(`x-${NEW_PASSWORD}`);
     await page.getByRole("button", { name: "Change password" }).click();
 
     await expect(page.getByText("Passwords do not match.")).toBeVisible();

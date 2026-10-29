@@ -20,6 +20,13 @@ test.describe("accessibility", () => {
     });
   }
 
+  test("the 404 page renders and has no automatic accessibility violations", async ({ page }) => {
+    const res = await page.goto("/no-such-page");
+    expect(res?.status()).toBe(404);
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
+
   for (const tab of ["profile", "security", "credits", "danger"]) {
     test(`the account ${tab} tab has no automatic accessibility violations`, async ({ page, user }) => {
       await signUpAndIn(page, user);

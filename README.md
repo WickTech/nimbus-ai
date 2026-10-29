@@ -136,15 +136,17 @@ Unit-level coverage is about 77% of lines and 89% of branches; the rest is authe
 
 Features planned for future iterations:
 
-- [ ] **OAuth providers** — Google and GitHub sign-in via NextAuth
-- [x] **Stripe credit top-ups** — buy credits via Stripe Checkout; webhook reconciles the ledger (`POST /api/stripe/checkout` + `/api/stripe/webhook`, `TopUpButton` in sidebar)
-- [ ] **Conversation sidebar** — list, rename, and delete past conversations
+- [x] **GitHub sign-in** — optional, enabled when `GITHUB_CLIENT_ID` is set (Google not added)
+- [x] **Stripe credit top-ups** — buy credits via Stripe Checkout; webhook reconciles the ledger (`POST /api/stripe/checkout` + idempotent `/api/stripe/webhook`; buy from Account → Credits)
+- [x] **Chat history** — sidebar plus `/history` with search, rename, delete and pagination
+- [x] **Account area** — profile, password change, ledger, credit purchase, account deletion
+- [x] **Chat polish** — mobile drawer, stop/copy, low-credit banner
 - [x] **Markdown rendering** — assistant responses render as rich Markdown (react-markdown + rehype-sanitize); headings, lists, inline/block code, bold
 - [ ] **Multi-model selector** — let users choose GPT-4o, Claude, Mistral etc. per conversation
-- [ ] **Rate limiting** — sliding-window per-IP and per-user guards on the chat route
+- [ ] **Rate limiting** — done for register/login/account; chat route and a shared (Redis) store still open
 - [ ] **Team workspaces** — shared credit pools with role-based access
 - [ ] **Usage analytics dashboard** — per-user token spend, daily active users, credit burn charts
-- [ ] **Postgres adapter** — swap SQLite for Postgres via `DATABASE_URL` with zero code changes
+- [x] **Postgres in production** — Vercel build swaps the Prisma provider and pushes the schema
 - [ ] **Email verification** — confirm email on signup; lock unverified accounts
 
 ---

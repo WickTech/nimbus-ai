@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  @apply bg-zinc-950 text-zinc-100 antialiased;
 }
 
 @media (prefers-reduced-motion: reduce) {

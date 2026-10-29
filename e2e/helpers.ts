@@ -32,8 +32,10 @@ export async function register(page: Page, user: TestUser) {
   await page.getByPlaceholder("Name (optional)").fill(user.name);
   await page.getByPlaceholder("Email").fill(user.email);
   await page.getByPlaceholder("Password (min 8 chars)").fill(user.password);
+  await page.getByPlaceholder("Confirm password").fill(user.password);
   await page.getByRole("button", { name: "Sign up" }).click();
-  await expect(page).toHaveURL(/\/login/);
+  // Sign-up signs the new user straight in.
+  await expect(page).toHaveURL(/\/chat/);
 }
 
 export async function login(page: Page, user: TestUser) {
@@ -44,9 +46,9 @@ export async function login(page: Page, user: TestUser) {
   await expect(page).toHaveURL(/\/chat/);
 }
 
+/** Creates the account (which signs in) and leaves the page on /chat. */
 export async function signUpAndIn(page: Page, user: TestUser) {
   await register(page, user);
-  await login(page, user);
 }
 
 /** Sends one chat message and waits for the streamed answer. */

@@ -4,6 +4,7 @@ import { HoverEffect } from "@/components/ui/card-hover-effect";
 import { Spotlight } from "@/components/ui/spotlight";
 import { StickyScroll } from "@/components/ui/sticky-scroll-reveal";
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
+import { SiteNav } from "@/components/SiteNav";
 import { TracingBeam } from "@/components/ui/tracing-beam";
 
 const LEDE =
@@ -78,6 +79,7 @@ const packs = [
 export default function Landing() {
   return (
     <main className="bg-zinc-950 text-zinc-100 antialiased">
+      <SiteNav />
       <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
         <Spotlight className="-top-40 left-0 overflow-visible md:-top-20 md:left-60" fill="#34d399" />
         <div className="relative z-10 flex max-w-3xl flex-col items-center gap-8">
@@ -93,10 +95,10 @@ export default function Landing() {
           />
           <div className="flex gap-4">
             <Link
-              href="/chat"
+              href="/register"
               className="rounded-lg bg-emerald-700 px-6 py-3 font-medium text-white transition hover:bg-emerald-600"
             >
-              Open the app →
+              Get started free →
             </Link>
             <Link
               href="https://github.com/WickTech/nimbus-ai"
@@ -109,14 +111,14 @@ export default function Landing() {
         <BackgroundBeams />
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-24">
+      <section id="features" className="mx-auto max-w-5xl px-6 py-24">
         <h2 className="mb-10 text-center text-3xl font-bold tracking-tight">
           What is wired together
         </h2>
         <StickyScroll content={features} />
       </section>
 
-      <section className="px-6 py-24">
+      <section id="flow" className="px-6 py-24">
         <h2 className="mb-16 text-center text-3xl font-bold tracking-tight">
           How a request flows
         </h2>
@@ -132,7 +134,7 @@ export default function Landing() {
         </TracingBeam>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 pb-32 pt-12">
+      <section id="pricing" className="mx-auto max-w-5xl px-6 pb-32 pt-12">
         <h2 className="text-center text-3xl font-bold tracking-tight">Pay as you go</h2>
         <p className="mx-auto mt-3 max-w-xl text-center text-zinc-400">
           No subscription. Buy credits when you need them; one credit is about 1k tokens.

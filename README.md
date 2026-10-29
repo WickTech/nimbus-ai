@@ -143,7 +143,7 @@ Features planned for future iterations:
 - [x] **Chat polish** — mobile drawer, stop/copy, low-credit banner
 - [x] **Markdown rendering** — assistant responses render as rich Markdown (react-markdown + rehype-sanitize); headings, lists, inline/block code, bold
 - [ ] **Multi-model selector** — let users choose GPT-4o, Claude, Mistral etc. per conversation
-- [ ] **Rate limiting** — done for register/login/account; chat route and a shared (Redis) store still open
+- [x] **Rate limiting** — register, login, account changes and chat (30 messages/min per user); in-memory per instance, a shared (Redis) store is still open
 - [ ] **Team workspaces** — shared credit pools with role-based access
 - [ ] **Usage analytics dashboard** — per-user token spend, daily active users, credit burn charts
 - [x] **Postgres in production** — Vercel build swaps the Prisma provider and pushes the schema

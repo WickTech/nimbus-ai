@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useChat, type Message } from "ai/react";
+import { NEW_CHAT_EVENT } from "@/components/NewChatLink";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 
@@ -10,12 +13,36 @@ interface Props {
 }
 
 export function ChatWindow({ conversationId, initialMessages }: Props) {
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
+  const router = useRouter();
+  // A new chat gets its id from the server on the first reply. Remembering it keeps every follow-up in the
+  // same conversation instead of starting a new one each time.
+  const [activeId, setActiveId] = useState(conversationId);
+  const { messages, input, handleInputChange, handleSubmit, isLoading, error, setMessages, setInput, stop } =
     useChat({
       api: "/api/chat",
       initialMessages,
-      body: { conversationId },
+      body: { conversationId: activeId },
+      onResponse(response) {
+        const id = response.headers.get("x-conversation-id");
+        if (id) setActiveId(id);
+      },
+      // Refresh the server-rendered sidebar (new chat, ordering, credit balance).
+      onFinish() {
+        router.refresh();
+      },
     });
+
+  // "New chat" while already on a blank /chat: start over in place.
+  useEffect(() => {
+    const reset = () => {
+      stop();
+      setMessages([]);
+      setInput("");
+      setActiveId(undefined);
+    };
+    window.addEventListener(NEW_CHAT_EVENT, reset);
+    return () => window.removeEventListener(NEW_CHAT_EVENT, reset);
+  }, [stop, setMessages, setInput]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

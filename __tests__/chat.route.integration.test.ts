@@ -178,7 +178,7 @@ describe("POST /api/chat", () => {
     expect(refund?.delta).toBe(1);
   });
 
-  it("never writes into another user's conversation", async () => {
+  it("refuses another user's conversation with a 404, before billing and before calling the model", async () => {
     const alice = await newUser(5);
     const bob = await newUser(5);
     signedInAs(alice);
@@ -186,12 +186,48 @@ describe("POST /api/chat", () => {
     await vi.waitFor(async () => expect(await db.conversation.count({ where: { userId: alice } })).toBe(1));
     const aliceConvo = await db.conversation.findFirstOrThrow({ where: { userId: alice } });
     const before = await db.message.count({ where: { conversationId: aliceConvo.id } });
+    model.calls = 0;
 
     signedInAs(bob);
-    await readAll(await chat("Bob tries to write into it", aliceConvo.id));
-    await vi.waitFor(async () => expect(await credits(bob)).toBeLessThan(5)); // Bob was charged, the call completed
+    const res = await chat("Bob tries to write into it", aliceConvo.id);
 
+    expect(res.status).toBe(404);
+    expect(model.calls).toBe(0);
+    expect(await credits(bob)).toBe(5);
     expect(await db.message.count({ where: { conversationId: aliceConvo.id } })).toBe(before);
     expect(await db.conversation.count({ where: { userId: bob } })).toBe(0);
+  });
+
+  it("tells the client the id of a new conversation, and follow-ups with that id stay in the same conversation", async () => {
+    const userId = await newUser(10);
+    signedInAs(userId);
+
+    const first = await chat("first question");
+    const id = first.headers.get("x-conversation-id");
+    expect(id).toBeTruthy();
+    await readAll(first);
+    await vi.waitFor(async () => expect(await db.message.count({ where: { conversationId: id! } })).toBe(2));
+
+    const second = await chat("second question", id!);
+    expect(second.headers.get("x-conversation-id")).toBe(id);
+    await readAll(second);
+    await vi.waitFor(async () => expect(await db.message.count({ where: { conversationId: id! } })).toBe(4));
+
+    const all = await db.conversation.findMany({ where: { userId }, include: { messages: { orderBy: { createdAt: "asc" } } } });
+    expect(all).toHaveLength(1);
+    expect(all[0].title).toBe("first question");
+    expect(all[0].messages.filter((m) => m.role === "user").map((m) => m.content)).toEqual(["first question", "second question"]);
+  });
+
+  it("leaves no empty conversation behind when the very first message fails upstream", async () => {
+    const userId = await newUser(5);
+    signedInAs(userId);
+    model.fail = true;
+
+    const res = await chat("this will fail upstream");
+    await readAll(res).catch(() => undefined);
+
+    await vi.waitFor(async () => expect(await credits(userId)).toBe(5));
+    await vi.waitFor(async () => expect(await db.conversation.count({ where: { userId } })).toBe(0));
   });
 });

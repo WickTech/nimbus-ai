@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, signUpAndIn, test } from "./helpers";
+import { expect, send, signUpAndIn, test } from "./helpers";
 
 // Automated accessibility checks (axe). They catch the mechanical problems (contrast, labels, landmarks);
 // they cannot replace trying the app with a keyboard and a screen reader.
@@ -28,6 +28,14 @@ test.describe("accessibility", () => {
       expect(await violations(page)).toEqual([]);
     });
   }
+
+  test("the history page has no automatic accessibility violations", async ({ page, user }) => {
+    await signUpAndIn(page, user);
+    await send(page, "a question for the history");
+    await page.goto("/history");
+    await expect(page.getByRole("heading", { name: "Chat history" })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
 
   test("the chat page has no automatic accessibility violations", async ({ page, user }) => {
     await signUpAndIn(page, user);

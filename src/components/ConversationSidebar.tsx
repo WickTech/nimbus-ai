@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NewChatLink } from "@/components/NewChatLink";
 import { db } from "@/lib/db";
 import { signOut } from "@/lib/auth";
 
@@ -31,13 +32,10 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
 
       {/* New chat */}
       <div className="px-3 py-2">
-        <Link
-          href="/chat"
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800"
-        >
+        <NewChatLink className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800">
           <span className="text-lg leading-none">+</span>
           New chat
-        </Link>
+        </NewChatLink>
       </div>
 
       {/* Conversation list */}
@@ -65,6 +63,15 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
           </ul>
         )}
       </nav>
+
+      <div className="border-t border-zinc-800 px-3 py-2">
+        <Link
+          href="/history"
+          className="block rounded-lg px-3 py-2 text-sm text-zinc-300 transition hover:bg-zinc-800"
+        >
+          All chats &amp; search →
+        </Link>
+      </div>
 
       {/* Footer */}
       <div className="border-t border-zinc-800 px-4 py-3">

@@ -46,6 +46,7 @@ export default async function ChatPage({ searchParams }: Props) {
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <ChatWindow
+          key={conversationId ?? "new"}
           conversationId={conversationId}
           initialMessages={initialMessages}
         />

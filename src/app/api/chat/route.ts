@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isRateLimited } from "@/lib/rateLimit";
 import { chatModel, SYSTEM_PROMPT } from "@/lib/ai";
 import { chatTelemetry, flushTelemetry } from "@/lib/telemetry";
 import {
@@ -32,6 +33,11 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
   const userId = session.user.id;
+
+  // Burst guard on top of the credit balance: 30 messages a minute per user. Checked before any billing.
+  if (isRateLimited(`chat:${userId}`, 30, 60_000)) {
+    return Response.json({ error: "Too many messages. Slow down." }, { status: 429 });
+  }
 
   const parsed = BodySchema.safeParse(await req.json());
   if (!parsed.success) {

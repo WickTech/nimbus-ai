@@ -95,6 +95,9 @@ model CreditLedger {
   delta     Int // negative = spend, positive = grant/top-up
   reason    String // "signup" | "chat" | "topup"
   balance   Int // running balance after this entry
+  // Idempotency key for grants that come from outside (the Stripe checkout session id). Unique, so a
+  // retried webhook cannot grant twice. NULL for ordinary entries (many NULLs are allowed).
+  externalRef String? @unique
   createdAt DateTime @default(now())
 
   @@index([userId])

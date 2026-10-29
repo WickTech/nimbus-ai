@@ -39,11 +39,11 @@ function send(event: unknown, { sign = true, secret = SECRET } = {}) {
   return POST(new Request("http://localhost/api/stripe/webhook", { method: "POST", body: payload }));
 }
 
-const completed = (metadata: Record<string, string> | null) => ({
+const completed = (metadata: Record<string, string> | null, sessionId = `cs_${randomUUID()}`) => ({
   id: `evt_${randomUUID()}`,
   object: "event",
   type: "checkout.session.completed",
-  data: { object: { id: "cs_test", object: "checkout.session", metadata } },
+  data: { object: { id: sessionId, object: "checkout.session", metadata } },
 });
 
 describe("POST /api/stripe/webhook", () => {
@@ -78,6 +78,48 @@ describe("POST /api/stripe/webhook", () => {
     const rows = await db.creditLedger.findMany({ where: { userId, reason: "topup" } });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ delta: 500, balance: 505 });
+  });
+
+  it("grants once when Stripe redelivers the same event", async () => {
+    const userId = await newUser();
+    const event = completed({ userId, credits: "100" });
+
+    expect((await send(event)).status).toBe(200);
+    expect((await send(event)).status).toBe(200);
+
+    expect(await credits(userId)).toBe(100);
+    expect(await db.creditLedger.count({ where: { userId, reason: "topup" } })).toBe(1);
+  });
+
+  it("grants once when a retry is a different event for the same checkout session", async () => {
+    const userId = await newUser();
+    const first = completed({ userId, credits: "100" }, "cs_same_payment");
+    const retry = completed({ userId, credits: "100" }, "cs_same_payment");
+
+    await send(first);
+    expect((await send(retry)).status).toBe(200);
+
+    expect(await credits(userId)).toBe(100);
+  });
+
+  it("grants once when two deliveries arrive at the same time", async () => {
+    const userId = await newUser();
+    const event = completed({ userId, credits: "100" });
+
+    const results = await Promise.all([send(event), send(event), send(event)]);
+
+    expect(results.map((r) => r.status)).toEqual([200, 200, 200]);
+    expect(await credits(userId)).toBe(100);
+    expect(await db.creditLedger.count({ where: { userId, reason: "topup" } })).toBe(1);
+  });
+
+  it("still grants two separate purchases", async () => {
+    const userId = await newUser();
+
+    await send(completed({ userId, credits: "100" }));
+    await send(completed({ userId, credits: "500" }));
+
+    expect(await credits(userId)).toBe(600);
   });
 
   it.each([

@@ -54,12 +54,18 @@ export async function spendCredits(
   });
 }
 
-/** Grant credits (signup bonus, top-up, refund) and record it. */
+/**
+ * Grant credits (signup bonus, top-up, refund) and record it.
+ *
+ * `externalRef` makes the grant idempotent: it is stored on the ledger row under a unique constraint, so a second
+ * grant with the same ref fails (Prisma P2002) and the whole transaction, balance update included, rolls back.
+ */
 export async function grantCredits(
   db: PrismaClient,
   userId: string,
   amount: number,
   reason: string,
+  externalRef?: string,
 ): Promise<{ balance: number }> {
   if (amount <= 0) throw new Error("amount must be positive");
 
@@ -68,7 +74,7 @@ export async function grantCredits(
     const balance = user.credits + amount;
     await tx.user.update({ where: { id: userId }, data: { credits: balance } });
     await tx.creditLedger.create({
-      data: { userId, delta: amount, reason, balance },
+      data: { userId, delta: amount, reason, balance, externalRef },
     });
     return { balance };
   });

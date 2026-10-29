@@ -94,7 +94,7 @@ export default function Landing() {
           <div className="flex gap-4">
             <Link
               href="/chat"
-              className="rounded-lg bg-emerald-600 px-6 py-3 font-medium text-white transition hover:bg-emerald-500"
+              className="rounded-lg bg-emerald-700 px-6 py-3 font-medium text-white transition hover:bg-emerald-600"
             >
               Open the app →
             </Link>

@@ -7,7 +7,8 @@ const { auth } = NextAuth(authConfig);
 
 // Protect the dashboard. Unauthenticated users are bounced to /login.
 export default auth((req) => {
-  const isProtected = req.nextUrl.pathname.startsWith("/chat");
+  const path = req.nextUrl.pathname;
+  const isProtected = path.startsWith("/chat") || path.startsWith("/account");
   if (isProtected && !req.auth) {
     const url = new URL("/login", req.nextUrl.origin);
     url.searchParams.set("from", req.nextUrl.pathname);
@@ -16,5 +17,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/chat/:path*"],
+  matcher: ["/chat/:path*", "/account/:path*"],
 };

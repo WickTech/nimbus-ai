@@ -30,8 +30,8 @@ export async function POST(req: Request) {
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/chat?topup=success`,
-    cancel_url: `${origin}/chat`,
+    success_url: `${origin}/account?tab=credits&topup=success`,
+    cancel_url: `${origin}/account?tab=credits`,
     metadata: {
       userId: session.user.id,
       credits: String(pkg.credits),

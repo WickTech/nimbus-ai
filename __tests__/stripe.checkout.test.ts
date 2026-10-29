@@ -70,8 +70,8 @@ describe("POST /api/stripe/checkout", () => {
     expect(create).toHaveBeenCalledWith({
       mode: "payment",
       line_items: [{ price: "price_500", quantity: 1 }],
-      success_url: "https://app.example.test/chat?topup=success",
-      cancel_url: "https://app.example.test/chat",
+      success_url: "https://app.example.test/account?tab=credits&topup=success",
+      cancel_url: "https://app.example.test/account?tab=credits",
       metadata: { userId: "user-1", credits: "500" },
     });
   });

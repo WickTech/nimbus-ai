@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
@@ -15,8 +16,8 @@ export default {
       },
       colors: {
         nimbus: {
-          DEFAULT: "#4f46e5",
-          dark: "#4338ca",
+          DEFAULT: "#047857", // emerald-700: 5.5:1 against white text
+          dark: "#065f46", // emerald-800
         },
       },
     },

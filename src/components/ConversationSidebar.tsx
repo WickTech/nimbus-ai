@@ -19,11 +19,13 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
   });
 
   return (
-    <aside className="flex w-64 flex-shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+    <aside className="flex w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-950">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <span className="font-semibold">Nimbus</span>
-        <span className="rounded-full bg-nimbus/10 px-2 py-0.5 text-xs font-medium text-nimbus dark:text-indigo-300">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
+        <Link href="/" className="font-semibold text-white">
+          Nimbus<span className="text-emerald-400">.</span>
+        </Link>
+        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
           {credits} cr
         </span>
       </div>
@@ -32,7 +34,7 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
       <div className="px-3 py-2">
         <Link
           href="/chat"
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800"
         >
           <span className="text-lg leading-none">+</span>
           New chat
@@ -42,7 +44,7 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
       {/* Conversation list */}
       <nav className="flex-1 overflow-y-auto px-3 pb-3">
         {conversations.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-zinc-500 dark:text-zinc-400">No conversations yet.</p>
+          <p className="px-3 py-4 text-xs text-zinc-400">No conversations yet.</p>
         ) : (
           <ul className="space-y-0.5">
             {conversations.map((c) => (
@@ -52,8 +54,8 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
                   className={
                     "block truncate rounded-lg px-3 py-2 text-sm transition " +
                     (c.id === currentId
-                      ? "bg-nimbus/10 font-medium text-nimbus dark:text-indigo-300"
-                      : "text-zinc-700 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800")
+                      ? "bg-emerald-500/15 font-medium text-emerald-300"
+                      : "text-zinc-300 hover:bg-zinc-800")
                   }
                   title={c.title}
                 >
@@ -66,8 +68,8 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <p className="truncate text-xs text-zinc-500" title={userEmail}>
+      <div className="border-t border-zinc-800 px-4 py-3">
+        <p className="truncate text-xs text-zinc-400" title={userEmail}>
           {userEmail}
         </p>
         <div className="flex items-center gap-3">
@@ -78,7 +80,7 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
             }}
             className="mt-1"
           >
-            <button className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400">
+            <button className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-200 hover:underline">
               Sign out
             </button>
           </form>

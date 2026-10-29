@@ -35,7 +35,7 @@ export function TopUpButton() {
     <button
       onClick={handleTopUp}
       disabled={loading}
-      className="mt-1 text-xs text-nimbus underline-offset-2 hover:underline disabled:opacity-50 dark:text-indigo-400"
+      className="mt-1 text-xs text-emerald-400 underline-offset-2 hover:underline disabled:opacity-50"
     >
       {loading ? "…" : "Top up credits"}
     </button>

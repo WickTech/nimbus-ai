@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { signOut } from "@/lib/auth";
-import { TopUpButton } from "@/components/TopUpButton";
 
 interface Props {
   userId: string;
@@ -69,9 +68,13 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
 
       {/* Footer */}
       <div className="border-t border-zinc-800 px-4 py-3">
-        <p className="truncate text-xs text-zinc-400" title={userEmail}>
+        <Link
+          href="/account"
+          className="block truncate text-xs text-zinc-400 transition hover:text-zinc-100"
+          title="Account settings"
+        >
           {userEmail}
-        </p>
+        </Link>
         <div className="flex items-center gap-3">
           <form
             action={async () => {
@@ -84,7 +87,12 @@ export async function ConversationSidebar({ userId, currentId, userEmail, credit
               Sign out
             </button>
           </form>
-          <TopUpButton />
+          <Link
+            href="/account?tab=credits"
+            className="mt-1 text-xs text-emerald-400 underline-offset-2 hover:underline"
+          >
+            Top up credits
+          </Link>
         </div>
       </div>
     </aside>

@@ -20,6 +20,15 @@ test.describe("accessibility", () => {
     });
   }
 
+  for (const tab of ["profile", "security", "credits", "danger"]) {
+    test(`the account ${tab} tab has no automatic accessibility violations`, async ({ page, user }) => {
+      await signUpAndIn(page, user);
+      await page.goto(`/account?tab=${tab}`);
+      await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+  }
+
   test("the chat page has no automatic accessibility violations", async ({ page, user }) => {
     await signUpAndIn(page, user);
     expect(await violations(page)).toEqual([]);

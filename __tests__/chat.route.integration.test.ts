@@ -3,8 +3,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The chat endpoint end to end on a real database, with the language model replaced by the AI SDK's mock
- * (no network, no key). Checks the billing rules: 1 credit is reserved before the model is called, the rest of
- * the cost is settled from the real token usage, and a failed model call does not cost the user anything.
+ * (no network, no key). Checks the billing rules: the worst case (estimated input + the 1,024-token output cap)
+ * is reserved before the model is called, the reserve is settled to the real token usage, and a failed model
+ * call does not cost the user anything.
  */
 
 // ---- test doubles -------------------------------------------------------------------------------------
@@ -14,6 +15,7 @@ const model = vi.hoisted(() => ({
   reply: "Hello from the mock model",
   promptTokens: 10,
   completionTokens: 30,
+  maxTokens: undefined as number | undefined,
 }));
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
@@ -23,8 +25,9 @@ vi.mock("@/lib/ai", async () => {
   return {
     SYSTEM_PROMPT: "test",
     chatModel: new MockLanguageModelV1({
-      doStream: async () => {
+      doStream: async (options) => {
         model.calls += 1;
+        model.maxTokens = options.maxTokens;
         if (model.fail) throw new Error("upstream is down");
         return {
           stream: simulateReadableStream({
@@ -63,6 +66,7 @@ beforeEach(() => {
   model.fail = false;
   model.promptTokens = 10;
   model.completionTokens = 30;
+  model.maxTokens = undefined;
 });
 
 async function newUser(credits: number): Promise<string> {
@@ -185,7 +189,17 @@ describe("POST /api/chat", () => {
     );
   });
 
-  it("settles a long answer from the real token usage (2,500 tokens = 3 credits)", async () => {
+  it("caps the model output at 1,024 tokens", async () => {
+    const userId = await newUser(5);
+    signedInAs(userId);
+
+    await readAll(await chat("hi"));
+
+    expect(model.calls).toBe(1);
+    expect(model.maxTokens).toBe(1024);
+  });
+
+  it("settles a long answer from the real token usage (2,500 tokens = 3 credits, 2 reserved)", async () => {
     const userId = await newUser(10);
     signedInAs(userId);
     model.promptTokens = 500;
@@ -199,8 +213,9 @@ describe("POST /api/chat", () => {
     );
     expect(reasons).toEqual(
       expect.arrayContaining([
-        ["chat:reserve", -1],
-        ["chat:reconcile", -2],
+        // Short prompt: ~1,040 tokens worst case = 2 credits reserved, then 1 more for the real 2,500 tokens.
+        ["chat:reserve", -2],
+        ["chat:reconcile", -1],
       ]),
     );
   });
@@ -226,8 +241,100 @@ describe("POST /api/chat", () => {
     await readAll(res).catch(() => undefined);
 
     await vi.waitFor(async () => expect(await credits(userId)).toBe(5));
+    const reserve = await db.creditLedger.findFirst({ where: { userId, reason: "chat:reserve" } });
     const refund = await db.creditLedger.findFirst({ where: { userId, reason: "chat:refund" } });
-    expect(refund?.delta).toBe(1);
+    expect(refund?.delta).toBe(-reserve!.delta);
+  });
+
+  // 3 x 8,000 characters. Reserve = ceil(chars / 2) + 4 per message (incl. the system prompt) + 1,024 output
+  // = 12,002 + 16 + 1,024 = 13,042 tokens = 14 credits.
+  const bigHistory = () => ({
+    messages: [
+      { role: "user", content: "a".repeat(8000) },
+      { role: "assistant", content: "b".repeat(8000) },
+      { role: "user", content: "c".repeat(8000) },
+    ],
+  });
+
+  it("answers 402 without calling the model when the balance cannot cover the worst-case reserve", async () => {
+    const userId = await newUser(13);
+    signedInAs(userId);
+
+    const res = await chat(bigHistory());
+
+    expect(res.status).toBe(402);
+    expect(model.calls).toBe(0);
+    expect(await credits(userId)).toBe(13);
+    expect(await db.creditLedger.count({ where: { userId, reason: { startsWith: "chat:" } } })).toBe(0);
+  });
+
+  it("answers 402 for a 1-credit balance even on a short message (the output cap alone needs 2)", async () => {
+    const userId = await newUser(1);
+    signedInAs(userId);
+
+    const res = await chat("hi");
+
+    expect(res.status).toBe(402);
+    expect(model.calls).toBe(0);
+    expect(await credits(userId)).toBe(1);
+  });
+
+  it("refunds the whole reserve when the model call fails", async () => {
+    const userId = await newUser(20);
+    signedInAs(userId);
+    model.fail = true;
+
+    await readAll(await chat(bigHistory())).catch(() => undefined);
+
+    await vi.waitFor(async () => expect(await credits(userId)).toBe(20));
+    const ledger = (await db.creditLedger.findMany({ where: { userId }, orderBy: { createdAt: "asc" } })).map(
+      (l) => [l.reason, l.delta],
+    );
+    expect(ledger).toEqual([
+      ["seed", 20],
+      ["chat:reserve", -14],
+      ["chat:refund", 14],
+    ]);
+  });
+
+  it("charges the actual usage on finish and refunds the rest of the reserve", async () => {
+    const userId = await newUser(20);
+    signedInAs(userId);
+    model.promptTokens = 6000;
+    model.completionTokens = 500; // 6,500 tokens = 7 credits
+
+    await readAll(await chat(bigHistory()));
+
+    await vi.waitFor(async () => expect(await db.message.count({ where: { conversation: { userId } } })).toBe(2));
+    expect(await credits(userId)).toBe(13);
+    const ledger = (await db.creditLedger.findMany({ where: { userId }, orderBy: { createdAt: "asc" } })).map(
+      (l) => [l.reason, l.delta],
+    );
+    expect(ledger).toEqual([
+      ["seed", 20],
+      ["chat:reserve", -14],
+      ["chat:release", 7],
+    ]);
+  });
+
+  it("charges no more than the balance when the real usage exceeds the reserve, and still saves the turn", async () => {
+    const userId = await newUser(4);
+    signedInAs(userId);
+    model.promptTokens = 4000;
+    model.completionTokens = 1000; // 5,000 tokens = 5 credits; 2 reserved, only 2 left to take
+
+    await readAll(await chat("short question, long bill"));
+
+    await vi.waitFor(async () => expect(await db.message.count({ where: { conversation: { userId } } })).toBe(2));
+    expect(await credits(userId)).toBe(0);
+    const ledger = (await db.creditLedger.findMany({ where: { userId }, orderBy: { createdAt: "asc" } })).map(
+      (l) => [l.reason, l.delta],
+    );
+    expect(ledger).toEqual([
+      ["seed", 4],
+      ["chat:reserve", -2],
+      ["chat:reconcile", -2],
+    ]);
   });
 
   it("refuses another user's conversation with a 404, before billing and before calling the model", async () => {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { stripe, CREDIT_PACKAGES } from "@/lib/stripe";
+import { appBaseUrl } from "@/lib/app-url";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unknown price" }, { status: 400 });
   }
 
-  const origin = req.headers.get("origin") ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  // From configuration, never from the request headers (see appBaseUrl).
+  const origin = appBaseUrl();
 
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",

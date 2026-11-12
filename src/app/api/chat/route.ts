@@ -15,17 +15,31 @@ import {
 
 export const runtime = "nodejs";
 
+// Request size bounds. Together with MAX_OUTPUT_TOKENS they cap what one request can cost upstream.
+const MAX_MESSAGES = 40;
+const MAX_MESSAGE_CHARS = 8000;
+const MAX_TOTAL_CHARS = 48_000;
+
 const BodySchema = z.object({
   conversationId: z.string().optional(),
   messages: z
     .array(
       z.object({
-        role: z.enum(["user", "assistant", "system"]),
-        content: z.string().min(1).max(8000),
+        // No "system" role from the client: the system prompt is set server-side only.
+        role: z.enum(["user", "assistant"]),
+        content: z.string().min(1).max(MAX_MESSAGE_CHARS),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(MAX_MESSAGES)
+    .refine((msgs) => totalChars(msgs) <= MAX_TOTAL_CHARS, {
+      message: `Messages may not exceed ${MAX_TOTAL_CHARS} characters in total`,
+    }),
 });
+
+function totalChars(messages: { content: string }[]): number {
+  return messages.reduce((sum, m) => sum + m.content.length, 0);
+}
 
 export async function POST(req: Request) {
   const session = await auth();

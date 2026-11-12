@@ -87,6 +87,8 @@ test.describe("chat and credits", () => {
     await expect(page.getByRole("status")).toContainText("Only 3 credits left.");
     await page.getByRole("button", { name: /JWT sessions/ }).click();
     await expect(page.getByLabel("Message")).toHaveValue(/JWT sessions/);
+    // the composer cannot hold more than the server's per-message limit (MAX_MESSAGE_CHARS)
+    await expect(page.getByLabel("Message")).toHaveAttribute("maxlength", "8000");
     await send(page, "hello copy");
     await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
   });

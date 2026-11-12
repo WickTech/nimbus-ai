@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useChat, type Message } from "ai/react";
-import { MIN_CREDITS_TO_SEND, trimChatWindow } from "@/lib/chat-limits";
+import { MAX_MESSAGE_CHARS, MIN_CREDITS_TO_SEND, trimChatWindow } from "@/lib/chat-limits";
 import { NEW_CHAT_EVENT } from "@/components/NewChatLink";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -203,6 +203,7 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
           onChange={handleInputChange}
           placeholder={outOfCredits ? "Top up credits to continue" : "Message Nimbus…"}
           aria-label="Message"
+          maxLength={MAX_MESSAGE_CHARS}
           disabled={outOfCredits}
           className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-emerald-500"
         />

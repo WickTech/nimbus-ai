@@ -7,6 +7,17 @@ test.describe("accounts", () => {
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   });
 
+  test("pages are sent with the security headers", async ({ page }) => {
+    const res = await page.goto("/login");
+    const headers = res!.headers();
+
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["content-security-policy"]).toBe("frame-ancestors 'none'");
+    expect(headers["strict-transport-security"]).toContain("max-age=");
+  });
+
   test("signing up signs the new user straight in, with the free credits", async ({ page, user }) => {
     await register(page, user);
 

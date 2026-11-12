@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** POST /api/stripe/checkout with auth and Stripe replaced by doubles (no network, no key). */
 const create = vi.hoisted(() => vi.fn());
@@ -30,9 +30,12 @@ function checkout(body: unknown, origin?: string) {
 }
 
 beforeEach(() => {
+  vi.stubEnv("AUTH_URL", "https://app.example.test");
   create.mockReset();
   create.mockResolvedValue({ url: "https://checkout.stripe.test/session" });
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("POST /api/stripe/checkout", () => {
   it("answers 401 without a session and never calls Stripe", async () => {
@@ -63,7 +66,7 @@ describe("POST /api/stripe/checkout", () => {
   it("creates a payment session that carries the user and the credits to grant", async () => {
     signedInAs("user-1");
 
-    const res = await checkout({ priceId: "price_500" }, "https://app.example.test");
+    const res = await checkout({ priceId: "price_500" });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: "https://checkout.stripe.test/session" });
@@ -74,5 +77,15 @@ describe("POST /api/stripe/checkout", () => {
       cancel_url: "https://app.example.test/account?tab=credits",
       metadata: { userId: "user-1", credits: "500" },
     });
+  });
+
+  it("builds the redirect URLs from the configured base URL, never from the request Origin", async () => {
+    signedInAs("user-1");
+
+    await checkout({ priceId: "price_100" }, "https://evil.example.test");
+
+    const args = create.mock.calls[0][0];
+    expect(args.success_url).toBe("https://app.example.test/account?tab=credits&topup=success");
+    expect(args.cancel_url).toBe("https://app.example.test/account?tab=credits");
   });
 });

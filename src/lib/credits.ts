@@ -63,9 +63,14 @@ export async function grantCreditsInTx(
 ): Promise<{ balance: number }> {
   if (amount <= 0) throw new Error("amount must be positive");
 
-  const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-  const balance = user.credits + amount;
-  await tx.user.update({ where: { id: userId }, data: { credits: balance } });
+  // Atomic increment (UPDATE ... SET credits = credits + n), not read-then-write: two grants racing on
+  // the same user each add their amount instead of the second overwriting the first from a stale read.
+  // The returned row is the balance right after this statement, which is what the ledger records.
+  const { credits: balance } = await tx.user.update({
+    where: { id: userId },
+    data: { credits: { increment: amount } },
+    select: { credits: true },
+  });
   await tx.creditLedger.create({
     data: { userId, delta: amount, reason, balance },
   });

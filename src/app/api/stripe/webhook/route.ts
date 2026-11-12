@@ -25,15 +25,19 @@ export async function POST(req: Request) {
     return new Response("Webhook signature verification failed", { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
+  // Grant only for a session whose money has actually arrived. `checkout.session.completed` also fires
+  // for delayed-notification methods (bank debits, vouchers) with payment_status "unpaid"; those pay later
+  // and send `checkout.session.async_payment_succeeded`, which is when the grant happens.
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.userId;
     const credits = Number(session.metadata?.credits ?? 0);
 
-    if (userId && credits > 0) {
+    if (session.payment_status === "paid" && userId && Number.isInteger(credits) && credits > 0) {
       try {
         // One transaction: record the checkout session id (primary key), then grant. Stripe retries
-        // deliveries, and a repeat fails the insert (P2002), which rolls the grant back too.
+        // deliveries, and both events above can arrive for one session; a repeat fails the insert (P2002),
+        // which rolls the grant back too.
         await db.$transaction(async (tx) => {
           await tx.processedStripeSession.create({ data: { id: session.id } });
           await grantCreditsInTx(tx, userId, credits, "topup");

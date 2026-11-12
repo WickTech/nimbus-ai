@@ -37,17 +37,16 @@ test.describe("chat and credits", () => {
     await expect(page.getByRole("status").getByRole("link", { name: "Top up" })).toBeVisible();
   });
 
-  test("a balance below the worst-case reserve is refused with the out-of-credits message", async ({ page, user }) => {
+  test("a balance below the worst-case reserve locks the composer instead of sending", async ({ page, user }) => {
     await signUpAndIn(page, user); // 3 credits
     await send(page, "one");
     await send(page, "two");
     await expectCredits(page, "1 cr");
 
-    // 1 credit cannot cover the 2-credit reserve: the server answers 402 before calling the model.
-    await page.getByPlaceholder("Message Nimbus…").fill("three");
-    await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByText("You're out of credits.", { exact: true })).toBeVisible();
-    await expect(page.getByText("Echo: three", { exact: true })).toHaveCount(0);
+    // 1 credit cannot cover the 2-credit reserve (the server would answer 402), so the composer is locked.
+    await expect(page.getByRole("status")).toContainText("Not enough credits to send a message");
+    await expect(page.getByLabel("Message")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
     await expectCredits(page, "1 cr");
   });
 

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { isRateLimited } from "@/lib/rateLimit";
 import { chatModel, SYSTEM_PROMPT } from "@/lib/ai";
 import { chatTelemetry, flushTelemetry } from "@/lib/telemetry";
+import { MAX_MESSAGES, MAX_MESSAGE_CHARS, MAX_OUTPUT_TOKENS, MAX_TOTAL_CHARS } from "@/lib/chat-limits";
 import {
   InsufficientCreditsError,
   grantCredits,
@@ -15,12 +16,8 @@ import {
 
 export const runtime = "nodejs";
 
-// Request size bounds. Together with MAX_OUTPUT_TOKENS they cap what one request can cost upstream.
-const MAX_MESSAGES = 40;
-const MAX_MESSAGE_CHARS = 8000;
-const MAX_TOTAL_CHARS = 48_000;
-// Output cap per reply, also the output part of the credit reserve.
-const MAX_OUTPUT_TOKENS = 1024;
+// Request size bounds (shared with the client, which trims its history to them) cap what one request can
+// cost upstream, together with MAX_OUTPUT_TOKENS.
 // Reserve estimate inputs (see estimateInputTokens).
 const CHARS_PER_TOKEN_ESTIMATE = 2;
 const PER_MESSAGE_TOKEN_OVERHEAD = 4;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useChat, type Message } from "ai/react";
+import { MIN_CREDITS_TO_SEND, trimChatWindow } from "@/lib/chat-limits";
 import { NEW_CHAT_EVENT } from "@/components/NewChatLink";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -46,11 +47,17 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
   // A new chat gets its id from the server on the first reply. Remembering it keeps every follow-up in the
   // same conversation instead of starting a new one each time.
   const [activeId, setActiveId] = useState(conversationId);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
   const { messages, input, handleInputChange, handleSubmit, isLoading, error, setMessages, setInput, stop } =
     useChat({
       api: "/api/chat",
       initialMessages,
-      body: { conversationId: activeId },
+      // Send only the newest window the server accepts; the UI keeps showing the whole chat.
+      experimental_prepareRequestBody: ({ messages }) => ({
+        conversationId: activeIdRef.current,
+        messages: trimChatWindow(messages),
+      }),
       onResponse(response) {
         const id = response.headers.get("x-conversation-id");
         if (id) setActiveId(id);
@@ -69,7 +76,8 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  const outOfCredits = credits <= 0;
+  // A send needs a reserve of at least MIN_CREDITS_TO_SEND, so below that the server would only answer 402.
+  const outOfCredits = credits < MIN_CREDITS_TO_SEND;
 
   // "New chat" while already on a blank /chat: start over in place.
   useEffect(() => {
@@ -90,7 +98,11 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
           role="status"
           className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 pl-16 text-sm text-amber-200 md:pl-4"
         >
-          {outOfCredits ? "You're out of credits." : `Only ${credits} credit${credits === 1 ? "" : "s"} left.`}{" "}
+          {credits <= 0
+            ? "You're out of credits."
+            : outOfCredits
+              ? `Not enough credits to send a message (${credits} left, ${MIN_CREDITS_TO_SEND} needed).`
+              : `Only ${credits} credit${credits === 1 ? "" : "s"} left.`}{" "}
           <Link href="/account?tab=credits" className="font-medium underline">
             Top up
           </Link>

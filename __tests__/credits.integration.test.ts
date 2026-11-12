@@ -91,4 +91,19 @@ describe("credit ledger on a real database", () => {
     await expect(grantCredits(db, userId, 0, "test")).rejects.toThrow("positive");
     expect(await balanceOf(userId)).toBe(5);
   });
+
+  it("concurrent grants sum correctly and each ledger row records a distinct running balance", async () => {
+    const userId = await newUser(3);
+
+    await Promise.all(Array.from({ length: 20 }, (_, i) => grantCredits(db, userId, i + 1, "test:grant")));
+
+    // 3 + (1 + 2 + ... + 20) = 213
+    expect(await balanceOf(userId)).toBe(213);
+    expect(await ledgerSum(userId)).toBe(213);
+    const grants = await db.creditLedger.findMany({ where: { userId, reason: "test:grant" } });
+    expect(grants).toHaveLength(20);
+    expect(new Set(grants.map((g) => g.balance)).size).toBe(20);
+    expect(Math.max(...grants.map((g) => g.balance))).toBe(213);
+  });
 });
+

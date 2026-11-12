@@ -18,8 +18,10 @@ function makeFakeDb(initialCredits: number) {
   const tx = {
     user: {
       findUniqueOrThrow: async () => ({ id: "u1", credits: state.credits }),
-      update: async ({ data }: { data: { credits: number } }) => {
-        state.credits = data.credits;
+      // Mirrors the atomic increment in grantCreditsInTx and returns the updated balance.
+      update: async ({ data }: { data: { credits: { increment: number } } }) => {
+        state.credits += data.credits.increment;
+        return { id: "u1", credits: state.credits };
       },
       // Mirrors the conditional UPDATE in spendCredits: only decrements (and
       // reports a match) when the balance still satisfies `credits: { gte }`.
@@ -92,5 +94,18 @@ describe("grantCredits", () => {
     const { balance } = await grantCredits(db as any, "u1", 100, "signup");
     expect(balance).toBe(100);
     expect(db.state.ledger.at(-1)).toMatchObject({ delta: 100, reason: "signup" });
+  });
+
+  it("concurrent grants each add their amount (no lost update from a stale read)", async () => {
+    // The fake's $transaction does not serialize, so the grants interleave the way two requests do on
+    // Postgres: a read-then-write grant would let the second write overwrite the first.
+    const db = makeFakeDb(10);
+    const results = await Promise.all(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      [5, 7, 11].map((amount) => grantCredits(db as any, "u1", amount, "topup")),
+    );
+    expect(db.state.credits).toBe(33);
+    expect(results.map((r) => r.balance).sort((a, b) => a - b)).toEqual([15, 22, 33]);
+    expect(db.state.ledger.map((l) => l.balance).sort((a, b) => a - b)).toEqual([15, 22, 33]);
   });
 });

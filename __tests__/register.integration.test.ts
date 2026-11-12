@@ -51,6 +51,33 @@ describe("POST /api/register", () => {
     expect(await db.user.count({ where: { email: address } })).toBe(1);
   });
 
+  it("answers a duplicate with 409 and leaves the first account and its credits untouched", async () => {
+    const address = email();
+    await register({ email: address, password: "correct-horse-6" }, "10.1.0.6");
+
+    const again = await register({ email: address, password: "another-pass-6" }, "10.1.0.6");
+
+    expect(again.status).toBe(409);
+    expect(await again.json()).toEqual({ error: "Email already registered" });
+    const users = await db.user.findMany({ where: { email: address } });
+    expect(users).toHaveLength(1);
+    expect(users[0].credits).toBe(7);
+    expect(await db.creditLedger.count({ where: { userId: users[0].id } })).toBe(1);
+  });
+
+  it("lets exactly one of several simultaneous sign-ups for one email win", async () => {
+    const address = email();
+
+    const results = await Promise.all(
+      ["10.1.0.7", "10.1.0.8", "10.1.0.9"].map((ip) => register({ email: address, password: "correct-horse-7" }, ip)),
+    );
+
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409, 409]);
+    const user = await db.user.findUniqueOrThrow({ where: { email: address } });
+    expect(user.credits).toBe(7);
+    expect(await db.creditLedger.count({ where: { userId: user.id } })).toBe(1);
+  });
+
   it("rejects a bad email, a short password and a missing body field", async () => {
     expect((await register({ email: "not-an-email", password: "correct-horse-4" }, "10.1.0.4")).status).toBe(400);
     expect((await register({ email: email(), password: "short" }, "10.1.0.4")).status).toBe(400);

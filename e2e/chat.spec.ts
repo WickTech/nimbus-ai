@@ -23,13 +23,32 @@ test.describe("chat and credits", () => {
 
   test("with no credits left the user is told so, not given a generic error", async ({ page, user }) => {
     await signUpAndIn(page, user); // 3 credits
-    for (const text of ["one", "two", "three"]) await send(page, text);
+    // Each message reserves its worst case (2 credits for a short one) and is then settled to real usage:
+    // "one" costs 1 (3 -> 2); the 2,500-token reply costs 3, more than the 2 reserved, so the overrun is
+    // capped at what is left and the balance stops at 0.
+    await send(page, "one");
+    await expectCredits(page, "2 cr");
+    await send(page, "LONGREPLY drain");
     await expectCredits(page, "0 cr");
 
     // the banner appears and the composer locks; the 402 itself is covered by the route integration test
     await expect(page.getByRole("status")).toContainText("You're out of credits.");
     await expect(page.getByLabel("Message")).toBeDisabled();
     await expect(page.getByRole("status").getByRole("link", { name: "Top up" })).toBeVisible();
+  });
+
+  test("a balance below the worst-case reserve is refused with the out-of-credits message", async ({ page, user }) => {
+    await signUpAndIn(page, user); // 3 credits
+    await send(page, "one");
+    await send(page, "two");
+    await expectCredits(page, "1 cr");
+
+    // 1 credit cannot cover the 2-credit reserve: the server answers 402 before calling the model.
+    await page.getByPlaceholder("Message Nimbus…").fill("three");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText("You're out of credits.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Echo: three", { exact: true })).toHaveCount(0);
+    await expectCredits(page, "1 cr");
   });
 
   test("a failed model call shows an error and does not cost a credit", async ({ page, user }) => {

@@ -39,12 +39,22 @@ function send(event: unknown, { sign = true, secret = SECRET } = {}) {
   return POST(new Request("http://localhost/api/stripe/webhook", { method: "POST", body: payload }));
 }
 
-const completed = (metadata: Record<string, string> | null, sessionId = `cs_${randomUUID()}`) => ({
+const sessionEvent = (
+  type: string,
+  metadata: Record<string, string> | null,
+  sessionId = `cs_${randomUUID()}`,
+  paymentStatus = "paid",
+) => ({
   id: `evt_${randomUUID()}`,
   object: "event",
-  type: "checkout.session.completed",
-  data: { object: { id: sessionId, object: "checkout.session", metadata } },
+  type,
+  data: { object: { id: sessionId, object: "checkout.session", payment_status: paymentStatus, metadata } },
 });
+
+const completed = (metadata: Record<string, string> | null, sessionId?: string, paymentStatus?: string) =>
+  sessionEvent("checkout.session.completed", metadata, sessionId, paymentStatus);
+const asyncSucceeded = (metadata: Record<string, string> | null, sessionId?: string) =>
+  sessionEvent("checkout.session.async_payment_succeeded", metadata, sessionId);
 
 describe("POST /api/stripe/webhook", () => {
   it("answers 400 when the signature header is missing", async () => {
@@ -113,6 +123,62 @@ describe("POST /api/stripe/webhook", () => {
     expect(await db.creditLedger.count({ where: { userId, reason: "topup" } })).toBe(1);
   });
 
+  it.each(["unpaid", "no_payment_required"])(
+    "grants nothing for a completed session whose payment_status is %s",
+    async (paymentStatus) => {
+      const userId = await newUser();
+
+      const res = await send(completed({ userId, credits: "100" }, undefined, paymentStatus));
+
+      expect(res.status).toBe(200);
+      expect(await credits(userId)).toBe(0);
+      expect(await db.creditLedger.count({ where: { userId } })).toBe(0);
+    },
+  );
+
+  it("grants nothing for a session event with no payment_status", async () => {
+    const userId = await newUser();
+    const event = completed({ userId, credits: "100" });
+    delete (event.data.object as { payment_status?: string }).payment_status;
+
+    expect((await send(event)).status).toBe(200);
+    expect(await credits(userId)).toBe(0);
+  });
+
+  it("grants when a delayed payment succeeds after an unpaid completion, and only once", async () => {
+    const userId = await newUser();
+    const metadata = { userId, credits: "500" };
+
+    await send(completed(metadata, "cs_delayed_payment", "unpaid"));
+    expect(await credits(userId)).toBe(0);
+
+    const succeeded = asyncSucceeded(metadata, "cs_delayed_payment");
+    expect((await send(succeeded)).status).toBe(200);
+    expect((await send(succeeded)).status).toBe(200);
+
+    expect(await credits(userId)).toBe(500);
+    expect(await db.creditLedger.count({ where: { userId, reason: "topup" } })).toBe(1);
+  });
+
+  it("grants once when both the paid completion and an async success arrive for one session", async () => {
+    const userId = await newUser();
+    const metadata = { userId, credits: "100" };
+
+    await Promise.all([send(completed(metadata, "cs_both_events")), send(asyncSucceeded(metadata, "cs_both_events"))]);
+
+    expect(await credits(userId)).toBe(100);
+    expect(await db.creditLedger.count({ where: { userId, reason: "topup" } })).toBe(1);
+  });
+
+  it("ignores checkout.session.async_payment_failed", async () => {
+    const userId = await newUser();
+
+    const res = await send(sessionEvent("checkout.session.async_payment_failed", { userId, credits: "100" }));
+
+    expect(res.status).toBe(200);
+    expect(await credits(userId)).toBe(0);
+  });
+
   it("still grants two separate purchases", async () => {
     const userId = await newUser();
 
@@ -127,6 +193,7 @@ describe("POST /api/stripe/webhook", () => {
     ["no user id", { credits: "100" }],
     ["zero credits", { userId: "x", credits: "0" }],
     ["credits that are not a number", { userId: "x", credits: "lots" }],
+    ["fractional credits", { userId: "x", credits: "1.5" }],
   ])("acknowledges a completed session with %s without granting anything", async (_name, metadata) => {
     const before = await db.creditLedger.count();
 

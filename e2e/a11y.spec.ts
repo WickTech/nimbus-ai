@@ -20,6 +20,13 @@ test.describe("accessibility", () => {
     });
   }
 
+  // The landing hero slides in on load. Checkers such as axe often run while that is still playing, so the
+  // animation must never change the colors they measure (it moves elements, it does not fade them).
+  test("/ has no automatic accessibility violations while the entrance animation is still playing", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    expect(await violations(page)).toEqual([]);
+  });
+
   test("the 404 page renders and has no automatic accessibility violations", async ({ page }) => {
     const res = await page.goto("/no-such-page");
     expect(res?.status()).toBe(404);

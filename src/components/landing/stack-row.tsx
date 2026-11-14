@@ -19,7 +19,7 @@ export function StackRow() {
       </h2>
       <ul className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-10 gap-y-5">
         {STACK.map((item) => (
-          <li key={item.file} className="flex items-center gap-2.5 text-sm font-medium text-zinc-400">
+          <li key={item.file} className="flex items-center gap-2.5 text-sm font-medium text-zinc-300">
             {/* Decorative: the name sits next to it. SVG, so it skips the image optimizer. */}
             <Image src={`/logos/${item.file}.svg`} alt="" width={20} height={20} unoptimized className="h-5 w-5" />
             {item.name}

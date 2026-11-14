@@ -41,12 +41,34 @@ pre:focus-visible {
       transform: none;
     }
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-spotlight {
-    animation: none;
-    opacity: 1;
-    transform: translate(-50%, -40%);
+  /* Typing caret in the chat picture on the landing page: a plain block, never text, so it cannot affect contrast. */
+  .caret {
+    animation: caret 1s steps(1) infinite;
+  }
+
+  @keyframes caret {
+    50% {
+      background-color: transparent;
+    }
+  }
+
+  /* "How a request flows": the emerald rail fills as the list scrolls through the viewport. Transform only, on an
+     empty element. Where scroll timelines are unsupported the rail simply stays fully drawn. */
+  @supports (animation-timeline: view()) {
+    .flow-fill {
+      animation: flow-fill linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 55%;
+    }
+
+    @keyframes flow-fill {
+      from {
+        transform: scaleY(0);
+      }
+      to {
+        transform: scaleY(1);
+      }
+    }
   }
 }

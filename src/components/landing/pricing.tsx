@@ -1,12 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-
-// Mirrors CREDIT_PACKAGES in src/lib/stripe.ts (credits and dollars); 1 credit is about 1k tokens.
-const PACKS = [
-  { credits: 100, dollars: 1, blurb: "About 100k tokens. Enough to try the app out.", best: false },
-  { credits: 500, dollars: 4, blurb: "About 500k tokens, for regular use at a lower price per credit.", best: false },
-  { credits: 2000, dollars: 14, blurb: "About 2M tokens, the best price per credit.", best: true },
-];
+import { PACKS } from "./content";
 
 const cents = (dollars: number, credits: number) => `${((dollars * 100) / credits).toFixed(1)}¢`;
 

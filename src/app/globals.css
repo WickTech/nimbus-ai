@@ -7,7 +7,40 @@
 }
 
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  @apply bg-zinc-950 font-sans text-zinc-100 antialiased;
+}
+
+/* Keyboard focus is always visible, on every page. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+pre:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* The landing hero's one page-load sequence: each piece slides up in turn (--rise-delay is set inline). */
+  .rise {
+    animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+
+  /* Position only, no opacity: text is always fully opaque, so contrast checkers (axe, Lighthouse) that run
+     while the page is still animating measure the real colors, not a half-faded blend. */
+  @keyframes rise {
+    from {
+      transform: translateY(14px);
+    }
+    to {
+      transform: none;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

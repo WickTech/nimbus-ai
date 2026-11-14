@@ -2,9 +2,10 @@ export type Lang = "ts" | "prisma";
 export type TokenKind = "plain" | "keyword" | "string" | "comment";
 export type Token = { text: string; kind: TokenKind };
 
-const KEYWORDS: Record<Lang, string> = {
-  ts: "const|await|return|async|throw|if|new",
-  prisma: "model",
+// Fixed patterns, one per language: a line comment, a double-quoted string, or one of a short keyword list.
+const PATTERNS: Record<Lang, RegExp> = {
+  ts: /(\/\/.*$|"(?:[^"\\]|\\.)*"|\b(?:const|await|return|async|throw|if|new)\b)/gm,
+  prisma: /(\/\/.*$|"(?:[^"\\]|\\.)*"|\b(?:model)\b)/gm,
 };
 
 /**
@@ -12,10 +13,9 @@ const KEYWORDS: Record<Lang, string> = {
  * It exists so the excerpts need no syntax-highlighting dependency; it is not a parser.
  */
 export function tokenize(code: string, lang: Lang = "ts"): Token[] {
-  const pattern = new RegExp(`(\\/\\/.*$|"(?:[^"\\\\]|\\\\.)*"|\\b(?:${KEYWORDS[lang]})\\b)`, "gm");
   const tokens: Token[] = [];
   let last = 0;
-  for (const match of code.matchAll(pattern)) {
+  for (const match of code.matchAll(PATTERNS[lang])) {
     const start = match.index ?? 0;
     if (start > last) tokens.push({ text: code.slice(last, start), kind: "plain" });
     const text = match[0];

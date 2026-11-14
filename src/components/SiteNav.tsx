@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { MobileMenu } from "@/components/MobileMenu";
 
 const links = [
   { href: "#features", label: "Features" },
@@ -27,16 +28,26 @@ export async function SiteNav() {
           ))}
         </ul>
         <div className="flex items-center gap-2 text-sm">
+          <MobileMenu links={links} showSignIn={!signedIn} />
           {signedIn ? (
-            <Link href="/chat" className="rounded-lg bg-nimbus px-4 py-2 font-medium text-white transition hover:bg-nimbus-dark">
+            <Link
+              href="/chat"
+              className="rounded-lg bg-nimbus px-4 py-2 font-medium text-white transition duration-200 hover:bg-nimbus-dark active:scale-[0.98]"
+            >
               Open app
             </Link>
           ) : (
             <>
-              <Link href="/login" className="rounded-lg px-3 py-2 font-medium text-zinc-200 transition hover:text-white">
+              <Link
+                href="/login"
+                className="hidden rounded-lg px-3 py-2 font-medium text-zinc-200 transition hover:text-white md:inline-flex"
+              >
                 Sign in
               </Link>
-              <Link href="/register" className="rounded-lg bg-nimbus px-4 py-2 font-medium text-white transition hover:bg-nimbus-dark">
+              <Link
+                href="/register"
+                className="rounded-lg bg-nimbus px-4 py-2 font-medium text-white transition duration-200 hover:bg-nimbus-dark active:scale-[0.98]"
+              >
                 Get started
               </Link>
             </>

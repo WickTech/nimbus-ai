@@ -1,10 +1,17 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 export default {
   darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        // Geist is self-hosted by the `geist` package (variables set in src/app/layout.tsx), so the build
+        // never fetches fonts from Google.
+        sans: ["var(--font-geist-sans)", ...defaultTheme.fontFamily.sans],
+        mono: ["var(--font-geist-mono)", ...defaultTheme.fontFamily.mono],
+      },
       animation: {
         spotlight: "spotlight 2s ease .75s 1 forwards",
       },

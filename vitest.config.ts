@@ -25,9 +25,11 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary", "lcov"],
       include: ["src/lib/**", "src/app/api/**"],
-      // Just below what the tests reach today (77% lines, 89% branches); raise it as tests are added.
+      // Just below what the tests reach today under vitest 5 (90% lines, 87% statements, 80% functions, 78% branches);
+      // vitest 5's v8 provider counts branches and functions differently from 2.x (which showed 89% branches), so these
+      // numbers are not comparable with the old ones. Raise them as tests are added.
       // The rest is auth wiring (auth.ts, NextAuth route), which only the browser tests exercise.
-      thresholds: { lines: 75, statements: 75, functions: 80, branches: 85 },
+      thresholds: { lines: 85, statements: 82, functions: 75, branches: 75 },
     },
   },
   resolve: {

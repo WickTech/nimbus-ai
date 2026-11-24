@@ -20,16 +20,16 @@ export const CREDIT_PACKAGES: { priceId: string; credits: number; label: string 
   {
     priceId: process.env.STRIPE_PRICE_100 ?? "",
     credits: 100,
-    label: "100 credits — $1",
+    label: "100 credits: $1",
   },
   {
     priceId: process.env.STRIPE_PRICE_500 ?? "",
     credits: 500,
-    label: "500 credits — $4",
+    label: "500 credits: $4",
   },
   {
     priceId: process.env.STRIPE_PRICE_2000 ?? "",
     credits: 2000,
-    label: "2 000 credits — $14",
+    label: "2 000 credits: $14",
   },
 ];

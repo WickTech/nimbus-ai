@@ -1,11 +1,11 @@
-import { streamText } from "ai";
+import { createUIMessageStreamResponse, streamText, toUIMessageStream } from "ai";
 import { after } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isRateLimited } from "@/lib/rateLimit";
 import { chatModel, SYSTEM_PROMPT } from "@/lib/ai";
-import { chatTelemetry, flushTelemetry } from "@/lib/telemetry";
+import { chatTelemetry, flushTelemetry, withTraceAttributes } from "@/lib/telemetry";
 import { MAX_MESSAGES, MAX_MESSAGE_CHARS, MAX_OUTPUT_TOKENS, MAX_TOTAL_CHARS } from "@/lib/chat-limits";
 import {
   InsufficientCreditsError,
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
   const parsed = BodySchema.safeParse(await req.json());
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+    return Response.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
   const { messages, conversationId } = parsed.data;
 
@@ -109,58 +109,63 @@ export async function POST(req: Request) {
   }
   const convoId = activeId;
 
-  const result = streamText({
-    model: chatModel,
-    system: SYSTEM_PROMPT,
-    messages,
-    maxTokens: MAX_OUTPUT_TOKENS,
-    experimental_telemetry: chatTelemetry({ userId, conversationId: convoId }),
-    // The model call failed, so the user got nothing: give back the whole reserve.
-    async onError({ error }) {
-      console.error("chat: upstream model error, refunding the reserve", error);
-      if (!settled) {
-        settled = true;
-        await grantCredits(db, userId, reserved, "chat:refund").catch((err) =>
-          console.error("chat: refund failed", err),
-        );
-      }
-      // Nothing was saved for a chat that failed on its very first message: do not leave an empty entry behind.
-      if (createdHere) {
-        await db.conversation
-          .deleteMany({ where: { id: convoId, userId } })
-          .catch((err) => console.error("chat: could not remove the empty conversation", err));
-      }
-    },
-    // Settle billing + persist once the full response is known. Never throws: a failure here is logged.
-    async onFinish({ text, usage }) {
-      const reported = usage?.totalTokens;
-      // Providers that report no usage give NaN in this SDK version; fall back to a conservative estimate.
-      const totalTokens =
-        typeof reported === "number" && Number.isFinite(reported) && reported >= 0
-          ? reported
-          : estimateInputTokens(messages, SYSTEM_PROMPT) + Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE);
-
-      if (!settled) {
-        settled = true;
-        try {
-          await settleReserve(userId, reserved, tokensToCredits(totalTokens));
-        } catch (err) {
-          console.error("chat: settling the reserve failed", err);
+  const result = withTraceAttributes({ userId, conversationId: convoId }, () =>
+    streamText({
+      model: chatModel,
+      system: SYSTEM_PROMPT,
+      messages,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      telemetry: chatTelemetry(),
+      // The model call failed, so the user got nothing: give back the whole reserve.
+      async onError({ error }) {
+        console.error("chat: upstream model error, refunding the reserve", error);
+        if (!settled) {
+          settled = true;
+          await grantCredits(db, userId, reserved, "chat:refund").catch((err) =>
+            console.error("chat: refund failed", err),
+          );
         }
-      }
+        // Nothing was saved for a chat that failed on its very first message: do not leave an empty entry behind.
+        if (createdHere) {
+          await db.conversation
+            .deleteMany({ where: { id: convoId, userId } })
+            .catch((err) => console.error("chat: could not remove the empty conversation", err));
+        }
+      },
+      // Settle billing + persist once the full response is known. Never throws: a failure here is logged.
+      async onFinish({ text, usage }) {
+        const reported = usage?.totalTokens;
+        // Providers that report no usage give NaN in this SDK version; fall back to a conservative estimate.
+        const totalTokens =
+          typeof reported === "number" && Number.isFinite(reported) && reported >= 0
+            ? reported
+            : estimateInputTokens(messages, SYSTEM_PROMPT) + Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE);
 
-      try {
-        await persistTurn(convoId, userId, messages, text, totalTokens);
-      } catch (err) {
-        console.error("chat: saving the turn failed", err);
-      }
-    },
-  });
+        if (!settled) {
+          settled = true;
+          try {
+            await settleReserve(userId, reserved, tokensToCredits(totalTokens));
+          } catch (err) {
+            console.error("chat: settling the reserve failed", err);
+          }
+        }
+
+        try {
+          await persistTurn(convoId, userId, messages, text, totalTokens);
+        } catch (err) {
+          console.error("chat: saving the turn failed", err);
+        }
+      },
+    }),
+  );
 
   // Runs after the stream closes, so trace export never delays tokens.
   after(flushTelemetry);
 
-  return result.toDataStreamResponse({ headers: { "x-conversation-id": convoId } });
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+    headers: { "x-conversation-id": convoId },
+  });
 }
 
 /**

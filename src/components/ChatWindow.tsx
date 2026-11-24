@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useChat, type Message } from "ai/react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { MAX_MESSAGE_CHARS, MIN_CREDITS_TO_SEND, trimChatWindow } from "@/lib/chat-limits";
 import { NEW_CHAT_EVENT } from "@/components/NewChatLink";
 import ReactMarkdown from "react-markdown";
@@ -11,7 +12,7 @@ import rehypeSanitize from "rehype-sanitize";
 
 interface Props {
   conversationId?: string;
-  initialMessages?: Message[];
+  initialMessages?: UIMessage[];
   credits: number;
 }
 
@@ -20,6 +21,11 @@ const SUGGESTIONS = [
   "Write a SQL query to find duplicate emails",
   "Summarise the pros and cons of SQLite vs Postgres",
 ];
+
+/** The plain text of a message: the text parts joined (the chat only has text parts). */
+function textOf(m: UIMessage): string {
+  return m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -49,24 +55,32 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
   const [activeId, setActiveId] = useState(conversationId);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error, setMessages, setInput, stop } =
-    useChat({
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, error, setMessages, stop } = useChat({
+    messages: initialMessages,
+    transport: new DefaultChatTransport({
       api: "/api/chat",
-      initialMessages,
-      // Send only the newest window the server accepts; the UI keeps showing the whole chat.
-      experimental_prepareRequestBody: ({ messages }) => ({
-        conversationId: activeIdRef.current,
-        messages: trimChatWindow(messages),
-      }),
-      onResponse(response) {
+      // Remember the id the server gave a new chat (the x-conversation-id header of the first reply).
+      fetch: async (url, init) => {
+        const response = await fetch(url, init);
         const id = response.headers.get("x-conversation-id");
         if (id) setActiveId(id);
+        return response;
       },
-      // Refresh the server-rendered sidebar (new chat, ordering, credit balance).
-      onFinish() {
-        router.refresh();
-      },
-    });
+      // Send only the newest window the server accepts, as plain {role, content}; the UI keeps showing the whole chat.
+      prepareSendMessagesRequest: ({ messages }) => ({
+        body: {
+          conversationId: activeIdRef.current,
+          messages: trimChatWindow(messages.map((m) => ({ role: m.role, content: textOf(m) }))),
+        },
+      }),
+    }),
+    // Refresh the server-rendered sidebar (new chat, ordering, credit balance).
+    onFinish() {
+      router.refresh();
+    },
+  });
+  const isLoading = status === "submitted" || status === "streaming";
 
   // Follow new output unless the user scrolled up to read.
   const scroller = useRef<HTMLDivElement>(null);
@@ -89,7 +103,7 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
     };
     window.addEventListener(NEW_CHAT_EVENT, reset);
     return () => window.removeEventListener(NEW_CHAT_EVENT, reset);
-  }, [stop, setMessages, setInput]);
+  }, [stop, setMessages]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -150,7 +164,7 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
               }
             >
               {m.role === "user" ? (
-                <span className="whitespace-pre-wrap">{m.content}</span>
+                <span className="whitespace-pre-wrap">{textOf(m)}</span>
               ) : (
                 <ReactMarkdown
                   rehypePlugins={[rehypeSanitize]}
@@ -173,11 +187,11 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
                     strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
                   }}
                 >
-                  {m.content}
+                  {textOf(m)}
                 </ReactMarkdown>
               )}
-              {m.role === "assistant" && m.content && !(isLoading && m.id === messages[messages.length - 1]?.id) && (
-                <CopyButton text={m.content} />
+              {m.role === "assistant" && textOf(m) && !(isLoading && m.id === messages[messages.length - 1]?.id) && (
+                <CopyButton text={textOf(m)} />
               )}
             </div>
           </div>
@@ -195,12 +209,18 @@ export function ChatWindow({ conversationId, initialMessages, credits }: Props) 
       </div>
 
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const text = input.trim();
+          if (!text || outOfCredits || isLoading) return;
+          setInput("");
+          void sendMessage({ text });
+        }}
         className="flex gap-2 border-t border-zinc-800 p-4"
       >
         <input
           value={input}
-          onChange={handleInputChange}
+          onChange={(e) => setInput(e.target.value)}
           placeholder={outOfCredits ? "Top up credits to continue" : "Message Nimbus…"}
           aria-label="Message"
           maxLength={MAX_MESSAGE_CHARS}

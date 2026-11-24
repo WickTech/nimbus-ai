@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ChatWindow } from "@/components/ChatWindow";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
-import type { Message } from "ai";
+import type { UIMessage } from "ai";
 
 interface Props {
   searchParams: Promise<{ id?: string }>;
@@ -21,7 +21,7 @@ export default async function ChatPage({ searchParams }: Props) {
   });
 
   // Load existing messages when resuming a conversation.
-  let initialMessages: Message[] = [];
+  let initialMessages: UIMessage[] = [];
   if (conversationId) {
     const convo = await db.conversation.findFirst({
       where: { id: conversationId, userId: session.user.id },
@@ -30,8 +30,8 @@ export default async function ChatPage({ searchParams }: Props) {
     if (convo) {
       initialMessages = convo.messages.map((m) => ({
         id: m.id,
-        role: m.role as Message["role"],
-        content: m.content,
+        role: m.role as UIMessage["role"],
+        parts: [{ type: "text" as const, text: m.content }],
       }));
     }
   }

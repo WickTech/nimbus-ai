@@ -21,26 +21,30 @@ const model = vi.hoisted(() => ({
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 
 vi.mock("@/lib/ai", async () => {
-  const { MockLanguageModelV1, simulateReadableStream } = await import("ai/test");
+  const { MockLanguageModelV4, simulateReadableStream } = await import("ai/test");
   return {
     SYSTEM_PROMPT: "test",
-    chatModel: new MockLanguageModelV1({
+    chatModel: new MockLanguageModelV4({
       doStream: async (options) => {
         model.calls += 1;
-        model.maxTokens = options.maxTokens;
+        model.maxTokens = options.maxOutputTokens;
         if (model.fail) throw new Error("upstream is down");
         return {
           stream: simulateReadableStream({
             chunks: [
-              { type: "text-delta" as const, textDelta: model.reply },
+              { type: "text-start" as const, id: "t1" },
+              { type: "text-delta" as const, id: "t1", delta: model.reply },
+              { type: "text-end" as const, id: "t1" },
               {
                 type: "finish" as const,
-                finishReason: "stop" as const,
-                usage: { promptTokens: model.promptTokens, completionTokens: model.completionTokens },
+                finishReason: { unified: "stop" as const, raw: "stop" },
+                usage: {
+                  inputTokens: { total: model.promptTokens, noCache: model.promptTokens, cacheRead: 0, cacheWrite: 0 },
+                  outputTokens: { total: model.completionTokens, text: model.completionTokens, reasoning: 0 },
+                },
               },
             ],
           }),
-          rawCall: { rawPrompt: null, rawSettings: {} },
         };
       },
     }),

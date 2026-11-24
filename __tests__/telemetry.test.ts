@@ -2,6 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const processors: { opts: unknown; forceFlush: ReturnType<typeof vi.fn> }[] = [];
 const registered: unknown[] = [];
+const integrations: unknown[] = [];
+const propagated: { params: unknown }[] = [];
+
+vi.mock("ai", () => ({ registerTelemetry: (i: unknown) => void integrations.push(i) }));
+vi.mock("@ai-sdk/otel", () => ({ OpenTelemetry: class {} }));
+vi.mock("@langfuse/tracing", () => ({
+  propagateAttributes: (params: unknown, fn: () => unknown) => {
+    propagated.push({ params });
+    return fn();
+  },
+}));
 
 vi.mock("@langfuse/otel", () => ({
   LangfuseSpanProcessor: class {
@@ -49,6 +60,8 @@ describe("telemetry", () => {
     }
     processors.length = 0;
     registered.length = 0;
+    integrations.length = 0;
+    propagated.length = 0;
     delete (globalThis as { __nimbusLangfuse?: unknown }).__nimbusLangfuse;
   });
 
@@ -65,7 +78,8 @@ describe("telemetry", () => {
     expect(t.telemetryEnabled()).toBe(false);
     await t.initTelemetry();
     expect(processors).toHaveLength(0);
-    expect(t.chatTelemetry({ userId: "u1" }).isEnabled).toBe(false);
+    expect(t.chatTelemetry().isEnabled).toBe(false);
+    expect(integrations).toHaveLength(0);
     await expect(t.flushTelemetry()).resolves.toBeUndefined(); // no-op, no throw
   });
 
@@ -76,6 +90,8 @@ describe("telemetry", () => {
     await t.initTelemetry();
     expect(processors).toHaveLength(1);
     expect(registered).toEqual([processors[0]]);
+    // AI SDK 7 only emits spans once an integration is registered: exactly one, even after two inits.
+    expect(integrations).toHaveLength(1);
     expect(processors[0].opts).toMatchObject({ exportMode: "batched" });
   });
 
@@ -102,25 +118,33 @@ describe("telemetry", () => {
     errSpy.mockRestore();
   });
 
-  it("builds AI SDK telemetry settings with Langfuse user/session keys", async () => {
+  it("builds AI SDK telemetry settings", async () => {
     enable();
     const t = await freshModule();
-    expect(t.chatTelemetry({ userId: "u1", conversationId: "c9" })).toEqual({
-      isEnabled: true,
-      functionId: "chat",
-      recordInputs: true,
-      recordOutputs: true,
-      metadata: { userId: "u1", sessionId: "c9", tags: ["chat"] },
-    });
+    expect(t.chatTelemetry()).toEqual({ isEnabled: true, functionId: "chat", recordInputs: true, recordOutputs: true });
+  });
+
+  it("attaches the Langfuse user, session and tags around the call", async () => {
+    enable();
+    const t = await freshModule();
+    expect(t.withTraceAttributes({ userId: "u1", conversationId: "c9" }, () => "result")).toBe("result");
+    expect(propagated[0].params).toEqual({ userId: "u1", sessionId: "c9", tags: ["chat"] });
     // New conversation: no session id yet.
-    expect(t.chatTelemetry({ userId: "u1" }).metadata).not.toHaveProperty("sessionId");
+    t.withTraceAttributes({ userId: "u1" }, () => 1);
+    expect(propagated[1].params).not.toHaveProperty("sessionId");
+  });
+
+  it("just runs the call when telemetry is off", async () => {
+    const t = await freshModule();
+    expect(t.withTraceAttributes({ userId: "u1" }, () => "plain")).toBe("plain");
+    expect(propagated).toHaveLength(0);
   });
 
   it("omits message content when LANGFUSE_RECORD_IO=false", async () => {
     enable();
     process.env.LANGFUSE_RECORD_IO = "false";
     const t = await freshModule();
-    const s = t.chatTelemetry({ userId: "u1" });
+    const s = t.chatTelemetry();
     expect(s.recordInputs).toBe(false);
     expect(s.recordOutputs).toBe(false);
   });

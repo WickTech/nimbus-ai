@@ -7,7 +7,9 @@ const openai = createOpenAI({
   baseURL: process.env.OPENAI_BASE_URL,
 });
 
-export const chatModel = openai(process.env.OPENAI_MODEL ?? "gpt-4o-mini");
+// `.chat()` pins the Chat Completions API: since provider 5 the bare `openai(model)` calls the Responses API, which
+// Ollama, Groq and Together do not serve.
+export const chatModel = openai.chat(process.env.OPENAI_MODEL ?? "gpt-4o-mini");
 
 export const SYSTEM_PROMPT =
   "You are Nimbus, a concise and helpful AI assistant. " +

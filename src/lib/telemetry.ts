@@ -1,4 +1,5 @@
 import type { LangfuseSpanProcessor } from "@langfuse/otel";
+import { propagateAttributes } from "@langfuse/tracing";
 
 /**
  * Langfuse LLM observability over OpenTelemetry.
@@ -25,10 +26,13 @@ export function telemetryEnabled(): boolean {
 export async function initTelemetry(): Promise<void> {
   if (!telemetryEnabled() || g.__nimbusLangfuse) return;
 
-  const [{ LangfuseSpanProcessor }, { NodeTracerProvider }] = await Promise.all([
-    import("@langfuse/otel"),
-    import("@opentelemetry/sdk-trace-node"),
-  ]);
+  const [{ LangfuseSpanProcessor }, { NodeTracerProvider }, { registerTelemetry }, { OpenTelemetry }] =
+    await Promise.all([
+      import("@langfuse/otel"),
+      import("@opentelemetry/sdk-trace-node"),
+      import("ai"),
+      import("@ai-sdk/otel"),
+    ]);
 
   // Credentials + LANGFUSE_BASE_URL are read from env by the processor itself.
   const processor = new LangfuseSpanProcessor({
@@ -39,6 +43,8 @@ export async function initTelemetry(): Promise<void> {
   });
 
   new NodeTracerProvider({ spanProcessors: [processor] }).register();
+  // AI SDK 7 no longer emits OpenTelemetry spans by itself: this integration turns every streamText call into spans.
+  registerTelemetry(new OpenTelemetry());
   g.__nimbusLangfuse = processor;
 }
 
@@ -53,11 +59,10 @@ export async function flushTelemetry(): Promise<void> {
 }
 
 /**
- * `experimental_telemetry` settings for the AI SDK. Langfuse maps the
- * `userId` / `sessionId` / `tags` metadata keys onto trace attributes, which
- * powers its per-user cost and per-conversation session views.
+ * `telemetry` settings for the AI SDK (v7). Per-call user, session and tags are not part of these settings any more:
+ * attach them with `withTraceAttributes`, which Langfuse maps onto its per-user cost and per-conversation session views.
  */
-export function chatTelemetry(opts: { userId: string; conversationId?: string }) {
+export function chatTelemetry() {
   // LANGFUSE_RECORD_IO=false keeps message content out of Langfuse (only
   // metadata, usage and timings are sent) for privacy-sensitive deployments.
   const recordIO = process.env.LANGFUSE_RECORD_IO !== "false";
@@ -66,10 +71,14 @@ export function chatTelemetry(opts: { userId: string; conversationId?: string })
     functionId: "chat",
     recordInputs: recordIO,
     recordOutputs: recordIO,
-    metadata: {
-      userId: opts.userId,
-      ...(opts.conversationId ? { sessionId: opts.conversationId } : {}),
-      tags: ["chat"],
-    },
   };
+}
+
+/** Run `fn` (the `streamText` call) with Langfuse user, session and tag attributes on every span it creates. */
+export function withTraceAttributes<T>(opts: { userId: string; conversationId?: string }, fn: () => T): T {
+  if (!telemetryEnabled()) return fn();
+  return propagateAttributes(
+    { userId: opts.userId, ...(opts.conversationId ? { sessionId: opts.conversationId } : {}), tags: ["chat"] },
+    fn,
+  );
 }
